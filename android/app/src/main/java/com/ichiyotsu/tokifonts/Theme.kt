@@ -150,6 +150,22 @@ private val ExpressiveDark = darkColorScheme(
     surfaceContainer = Color(0xFF1E201A),
     surfaceContainerHigh = Color(0xFF282B24),
     surfaceContainerHighest = Color(0xFF33362E),
+    // 以下 13 个槽此前未赋值、走 M3 基线默认（种子紫/粉），与 Matcha 不搭：
+    // surfaceTint 按 M3 规则取 primary 本色；Fixed 一族深浅不翻转，两套用同一组
+    // Matcha 色调（容器取浅色 container 色、on 取深色 on 色、variant 取深色 container 色）。
+    surfaceTint = Color(0xFFB1D18A),
+    primaryFixed = Color(0xFFCDEDA3),
+    primaryFixedDim = Color(0xFFB1D18A),
+    onPrimaryFixed = Color(0xFF1F3701),
+    onPrimaryFixedVariant = Color(0xFF354E16),
+    secondaryFixed = Color(0xFFDCE7C8),
+    secondaryFixedDim = Color(0xFFBFCBAD),
+    onSecondaryFixed = Color(0xFF2A331E),
+    onSecondaryFixedVariant = Color(0xFF404A33),
+    tertiaryFixed = Color(0xFFBCECE7),
+    tertiaryFixedDim = Color(0xFFA0D0CB),
+    onTertiaryFixed = Color(0xFF003735),
+    onTertiaryFixedVariant = Color(0xFF1F4E4B),
 )
 
 private val ExpressiveLight = lightColorScheme(
@@ -188,6 +204,20 @@ private val ExpressiveLight = lightColorScheme(
     surfaceContainer = Color(0xFFEEEFE3),
     surfaceContainerHigh = Color(0xFFE8E9DE),
     surfaceContainerHighest = Color(0xFFE2E3D8),
+    // 同深色：补齐 13 个槽，Fixed 一族与深色套共用同一组值（不随深浅翻转）。
+    surfaceTint = Color(0xFF4C662B),
+    primaryFixed = Color(0xFFCDEDA3),
+    primaryFixedDim = Color(0xFFB1D18A),
+    onPrimaryFixed = Color(0xFF1F3701),
+    onPrimaryFixedVariant = Color(0xFF354E16),
+    secondaryFixed = Color(0xFFDCE7C8),
+    secondaryFixedDim = Color(0xFFBFCBAD),
+    onSecondaryFixed = Color(0xFF2A331E),
+    onSecondaryFixedVariant = Color(0xFF404A33),
+    tertiaryFixed = Color(0xFFBCECE7),
+    tertiaryFixedDim = Color(0xFFA0D0CB),
+    onTertiaryFixed = Color(0xFF003735),
+    onTertiaryFixedVariant = Color(0xFF1F4E4B),
 )
 
 /** Material 3 Expressive：动态取色、表现力动效，界面字体用 Google Sans。 */
@@ -222,34 +252,48 @@ fun TokiTheme(dark: Boolean = isSystemInDarkTheme(), dynamic: Boolean = true, co
     )
 }
 
+// 对比度兜底用的替换色全部取 Matcha 自己的中性色，不再用带紫调的 M3 基线灰。
+private val ContrastOnDark = Color(0xFFE2E3D8) // 深底上的浅字（Matcha 深色 onSurface）
+private val ContrastOnLight = Color(0xFF1A1C16) // 浅底上的深字（Matcha 浅色 onSurface）
+private val ContrastVariantOnDark = Color(0xFFC5C8BA) // Matcha 深色 onSurfaceVariant
+private val ContrastVariantOnLight = Color(0xFF44483D) // Matcha 浅色 onSurfaceVariant
+
 private fun androidx.compose.material3.ColorScheme.ensureTextContrast(dark: Boolean): androidx.compose.material3.ColorScheme {
-    // 动态取色可能给出对比不足的组合：成对的容器色也按 0.45 的亮度差兜底，
-    // 不只补 onSurface 三个槽（教程卡片用的 primaryContainer/onPrimaryContainer 也在内）。
+    // 动态取色可能给出对比不足的组合：所有成对的 on 色都按 0.45 的亮度差兜底，
+    // 包括 primary/secondary/tertiary/error 的本体与容器、inverse 一对；
+    // onSurface 除了绝对亮度阈值，还要对字体预览条的底色 surfaceContainerHighest 再验一遍。
+    val surfaceText = if (dark) {
+        if (onSurface.luminance() < 0.72f) ContrastOnDark else onSurface
+    } else {
+        if (onSurface.luminance() > 0.42f) ContrastOnLight else onSurface
+    }
     return copy(
-        onSurface = if (dark) {
-            if (onSurface.luminance() < 0.72f) Color(0xFFF6F1FA) else onSurface
-        } else {
-            if (onSurface.luminance() > 0.42f) Color(0xFF1C1B1F) else onSurface
-        },
+        onSurface = contrasting(surfaceContainerHighest, surfaceText),
         onSurfaceVariant = if (dark) {
-            if (onSurfaceVariant.luminance() < 0.55f) Color(0xFFE0D7EA) else onSurfaceVariant
+            if (onSurfaceVariant.luminance() < 0.55f) ContrastVariantOnDark else onSurfaceVariant
         } else {
-            if (onSurfaceVariant.luminance() > 0.5f) Color(0xFF49454F) else onSurfaceVariant
+            if (onSurfaceVariant.luminance() > 0.5f) ContrastVariantOnLight else onSurfaceVariant
         },
         onBackground = if (dark) {
-            if (onBackground.luminance() < 0.72f) Color(0xFFF6F1FA) else onBackground
+            if (onBackground.luminance() < 0.72f) ContrastOnDark else onBackground
         } else {
-            if (onBackground.luminance() > 0.42f) Color(0xFF1C1B1F) else onBackground
+            if (onBackground.luminance() > 0.42f) ContrastOnLight else onBackground
         },
+        onPrimary = contrasting(primary, onPrimary),
+        onSecondary = contrasting(secondary, onSecondary),
+        onTertiary = contrasting(tertiary, onTertiary),
+        onError = contrasting(error, onError),
         onPrimaryContainer = contrasting(primaryContainer, onPrimaryContainer),
         onSecondaryContainer = contrasting(secondaryContainer, onSecondaryContainer),
         onTertiaryContainer = contrasting(tertiaryContainer, onTertiaryContainer),
+        onErrorContainer = contrasting(errorContainer, onErrorContainer),
+        inverseOnSurface = contrasting(inverseSurface, inverseOnSurface),
     )
 }
 
 internal fun contrasting(background: Color, foreground: Color): Color {
     if (kotlin.math.abs(background.luminance() - foreground.luminance()) >= 0.45f) return foreground
-    return if (background.luminance() > 0.5f) Color(0xFF1C1B1F) else Color(0xFFF6F1FA)
+    return if (background.luminance() > 0.5f) ContrastOnLight else ContrastOnDark
 }
 
 @OptIn(ExperimentalTextApi::class)

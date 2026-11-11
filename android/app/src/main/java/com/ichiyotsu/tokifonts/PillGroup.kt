@@ -71,7 +71,9 @@ private fun PillSegment(
     )
     Row(
         modifier = modifier
-            .height(42.dp)
+            // 段高 48.dp：M3 要求交互目标至少 48dp，Tokinote 原段高 42dp 不达标，
+            // 这里按规范把可点高度补到 48dp，胶囊观感不变。
+            .height(48.dp)
             .clip(CircleShape)
             .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .clickable(interactionSource = interaction, indication = null) { onClick() }

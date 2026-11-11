@@ -76,7 +76,8 @@ class ScreenshotTest {
     }
 
     private fun show(vm: FontsViewModel, tab: Int) {
-        rule.setContent { TokiTheme(dark = vm.themeMode == 2, dynamic = false) { TokiApp(vm, tab) } }
+        // dark 必须显式传给 TokiApp 且与主题用同一个值，否则毛玻璃 tint 的深浅会跟系统走、与主题脱节。
+        rule.setContent { TokiTheme(dark = vm.themeMode == 2, dynamic = false) { TokiApp(vm, tab, dark = vm.themeMode == 2) } }
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(800)
         rule.waitForIdle()

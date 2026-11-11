@@ -129,6 +129,7 @@ fun ExpressiveNavRail(
             val on = index == selected
             val container = if (on) scheme.primary else scheme.surface
             val content = if (on) scheme.onPrimary else scheme.onSurfaceVariant
+            val railInteraction = remember { MutableInteractionSource() }
             Column(
                 Modifier
                     .height(64.dp)
@@ -136,7 +137,7 @@ fun ExpressiveNavRail(
                     .padding(horizontal = 8.dp)
                     .clip(RoundedCornerShape(if (on) 16.dp else 8.dp))
                     .background(container)
-                    .clickable { onSelect(index) }
+                    .clickable(railInteraction, ripple(color = scheme.primary)) { onSelect(index) }
                     .semantics {
                         role = Role.Tab
                         this.selected = on
@@ -204,7 +205,7 @@ private fun ExpressiveNavItem(icon: String, label: String, selected: Boolean, re
             .height(56.dp)
             .clip(CircleShape)
             .background(background)
-            .clickable(interaction, ripple(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f))) {
+            .clickable(interaction, ripple(color = MaterialTheme.colorScheme.primary)) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onClick()
             }

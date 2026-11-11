@@ -52,6 +52,7 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 headlineContent = { Text("动态取色") },
                 supportingContent = { Text("用壁纸颜色生成界面配色") },
                 trailingContent = { Switch(checked = vm.dynamicColor, onCheckedChange = { vm.setDynamic(it) }) },
+                colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
         }
         Section(title = "预览文字") {
@@ -61,6 +62,8 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 onValueChange = vm::updatePreview,
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
+                // 与搜索框、详情预览框统一圆角 28dp（此前漏传 shape、走默认 8dp，全 App 不一致）。
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 label = { Text("全局预览文字") },
             )
@@ -71,6 +74,7 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 headlineContent = { Text("启动时检查更新") },
                 supportingContent = { Text("打开应用时查看 GitHub 上有没有新的正式版") },
                 trailingContent = { Switch(checked = vm.checkOnLaunch, onCheckedChange = vm::persistCheckOnLaunch) },
+                colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
             Button(onClick = { vm.checkUpdate(manual = true) }, enabled = !vm.updateChecking) { Text(if (vm.updateChecking) "正在检查" else "检查更新") }
         }
