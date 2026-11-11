@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -38,7 +39,7 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
     var confirmClear by remember { mutableStateOf(false) }
     val downloaded = catalog?.families?.flatMap { it.faces }?.count { vm.status(it.id) is FaceStatus.Ready } ?: 0
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(padding).padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(padding.asPagePadding()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("设置", style = MaterialTheme.typography.displaySmallEmphasized)
@@ -59,6 +60,18 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 supportingContent = { Text("用壁纸颜色生成界面配色") },
                 trailingContent = { Switch(checked = vm.dynamicColor, onCheckedChange = { vm.setDynamic(it) }) },
             )
+        }
+        Section(title = "预览文字") {
+            Text("字体列表和还没单独改过的详情页都用这段文字。某一套字体在详情页改过的，不会被这里覆盖。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(
+                value = vm.previewText,
+                onValueChange = vm::updatePreview,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                label = { Text("全局预览文字") },
+            )
+            TextButton(onClick = vm::resetPreview) { Text("恢复默认") }
         }
         Section(title = "更新") {
             ListItem(

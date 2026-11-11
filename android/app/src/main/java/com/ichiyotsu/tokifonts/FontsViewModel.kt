@@ -50,6 +50,7 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
     var themeMode by mutableIntStateOf(0)
     var dynamicColor by mutableStateOf(true)
     var previewText by mutableStateOf(DEFAULT_PREVIEW)
+    var previewOverrides by mutableStateOf<Map<String, String>>(emptyMap())
     var query by mutableStateOf("")
     var searchOpen by mutableStateOf(false)
     var groupId by mutableStateOf("all")
@@ -75,6 +76,7 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         themeMode = prefs.getInt(KEY_THEME, 0)
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true)
         previewText = prefs.getString(KEY_PREVIEW, DEFAULT_PREVIEW) ?: DEFAULT_PREVIEW
+        previewOverrides = decodeOverrides(prefs.getString(KEY_PREVIEW_OVERRIDES, null))
         checkOnLaunch = prefs.getBoolean(KEY_UPDATE_LAUNCH, true)
         exported = prefs.getStringSet(KEY_EXPORTED, emptySet()).orEmpty().toSet()
         viewModelScope.launch(Dispatchers.IO) {
@@ -130,6 +132,26 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
     fun updatePreview(text: String) {
         previewText = text
         prefs.edit().putString(KEY_PREVIEW, text).apply()
+    }
+
+    fun previewFor(familyId: String): String = previewOverrides[familyId] ?: previewText
+
+    fun hasFamilyPreview(familyId: String) = familyId in previewOverrides
+
+    fun setFamilyPreview(familyId: String, text: String) {
+        previewOverrides = if (text == previewText) previewOverrides - familyId else previewOverrides + (familyId to text)
+        saveOverrides()
+    }
+
+    fun clearFamilyPreview(familyId: String) {
+        previewOverrides = previewOverrides - familyId
+        saveOverrides()
+    }
+
+    private fun saveOverrides() {
+        val json = org.json.JSONObject()
+        previewOverrides.forEach { (id, text) -> json.put(id, text) }
+        prefs.edit().putString(KEY_PREVIEW_OVERRIDES, json.toString()).apply()
     }
 
     fun resetPreview() {
@@ -324,7 +346,16 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         private const val KEY_THEME = "theme"
         private const val KEY_DYNAMIC = "dynamic"
         private const val KEY_PREVIEW = "preview"
+        private const val KEY_PREVIEW_OVERRIDES = "preview_overrides"
         private const val KEY_EXPORTED = "exported"
         private const val KEY_UPDATE_LAUNCH = "update_on_launch"
+
+        private fun decodeOverrides(raw: String?): Map<String, String> {
+            if (raw.isNullOrBlank()) return emptyMap()
+            val json = org.json.JSONObject(raw)
+            return buildMap {
+                json.keys().forEach { key -> put(key, json.optString(key)) }
+            }
+        }
     }
 }

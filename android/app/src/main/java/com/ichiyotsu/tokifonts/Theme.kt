@@ -15,7 +15,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import android.app.Activity
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -81,6 +85,8 @@ private val ExpressiveDark = darkColorScheme(
     tertiaryContainer = Color(0xFF633B48),
     onTertiaryContainer = Color(0xFFFFD8E4),
     surface = Color(0xFF141218),
+    background = Color(0xFF141218),
+    onBackground = Color(0xFFF6F1FA),
     onSurface = Color(0xFFF6F1FA),
     onSurfaceVariant = Color(0xFFE0D7EA),
     outline = Color(0xFFB4A9C4),
@@ -99,6 +105,10 @@ private val ExpressiveLight = lightColorScheme(
     tertiaryContainer = Color(0xFFFFD8E4),
     onTertiaryContainer = Color(0xFF31111D),
     surface = Color(0xFFFEF7FF),
+    background = Color(0xFFFFFBFE),
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F),
+    onSurfaceVariant = Color(0xFF49454F),
     surfaceContainer = Color(0xFFF3EDF7),
     surfaceContainerHigh = Color(0xFFECE6F0),
     surfaceContainerHighest = Color(0xFFE6E0E9),
@@ -117,7 +127,17 @@ fun TokiTheme(dark: Boolean = isSystemInDarkTheme(), dynamic: Boolean = true, co
             dark -> ExpressiveDark
             else -> ExpressiveLight
         }
-    }.getOrElse { if (dark) ExpressiveDark else ExpressiveLight }.readableDarkText(dark)
+    }.getOrElse { if (dark) ExpressiveDark else ExpressiveLight }.ensureTextContrast(dark)
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
+    }
     MaterialExpressiveTheme(
         colorScheme = scheme,
         motionScheme = MotionScheme.expressive(),
@@ -126,14 +146,25 @@ fun TokiTheme(dark: Boolean = isSystemInDarkTheme(), dynamic: Boolean = true, co
     )
 }
 
-/** 深色下把正文和次要文字抬到能看清的亮度。动态取色如果给得太暗，也按同样的下限补。 */
-private fun androidx.compose.material3.ColorScheme.readableDarkText(dark: Boolean): androidx.compose.material3.ColorScheme {
-    if (!dark) return this
-    return copy(
-        onSurface = if (onSurface.luminance() < 0.78f) Color(0xFFF6F1FA) else onSurface,
-        onSurfaceVariant = if (onSurfaceVariant.luminance() < 0.62f) Color(0xFFE0D7EA) else onSurfaceVariant,
-        outline = if (outline.luminance() < 0.32f) Color(0xFFB4A9C4) else outline,
-    )
+private fun androidx.compose.material3.ColorScheme.ensureTextContrast(dark: Boolean): androidx.compose.material3.ColorScheme {
+    return if (dark) {
+        copy(
+            onSurface = if (onSurface.luminance() < 0.72f) Color(0xFFF6F1FA) else onSurface,
+            onSurfaceVariant = if (onSurfaceVariant.luminance() < 0.55f) Color(0xFFE0D7EA) else onSurfaceVariant,
+            onBackground = if (onBackground.luminance() < 0.72f) Color(0xFFF6F1FA) else onBackground,
+        )
+    } else {
+        copy(
+            onSurface = if (onSurface.luminance() > 0.42f) Color(0xFF1C1B1F) else onSurface,
+            onSurfaceVariant = if (onSurfaceVariant.luminance() > 0.5f) Color(0xFF49454F) else onSurfaceVariant,
+            onBackground = if (onBackground.luminance() > 0.42f) Color(0xFF1C1B1F) else onBackground,
+        )
+    }
+}
+
+internal fun contrasting(background: Color, foreground: Color): Color {
+    if (kotlin.math.abs(background.luminance() - foreground.luminance()) >= 0.45f) return foreground
+    return if (background.luminance() > 0.5f) Color(0xFF1C1B1F) else Color(0xFFF6F1FA)
 }
 
 @OptIn(ExperimentalTextApi::class)

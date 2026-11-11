@@ -1,10 +1,13 @@
 package com.ichiyotsu.tokifonts
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -22,12 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
 private val Pages = listOf(
-    NavEntry("text_fields", "字体库"),
+    NavEntry("text_fields", "字体"),
     NavEntry("download", "安装"),
     NavEntry("settings", "设置"),
 )
@@ -45,7 +50,7 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
     }
     BackHandler(enabled = vm.openFamilyId != null || vm.searchOpen || (vm.tab == 1 && vm.installPage != "fonts")) {
         when {
-            vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> vm.installPage = "solutions"
+            vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> vm.installPage = "tutorials"
             vm.tab == 1 && vm.installPage != "fonts" -> vm.installPage = "fonts"
             vm.openFamilyId != null -> vm.openFamilyId = null
             vm.searchOpen -> vm.searchOpen = false
@@ -63,15 +68,15 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
         )
         val actionIcon = when (vm.tab) {
             0 -> "search"
-            1 -> "refresh"
+            1 -> "menu_book"
             else -> "palette"
         }
         val actionLabel = when (vm.tab) {
             0 -> "搜索"
-            1 -> "重新扫描已下载字体"
+            1 -> "教程"
             else -> "切换动态取色"
         }
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 when {
                     vm.catalog == null && vm.loadError == null -> {
@@ -85,7 +90,7 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
                     vm.tab == 0 && vm.openFamilyId != null -> FontDetail(vm, vm.openFamilyId!!, padding)
                     vm.tab == 0 -> LibraryScreen(vm, padding)
                     vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> InstallTutorial(vm, vm.installPage.removePrefix("tutorial:"), padding)
-                    vm.tab == 1 && vm.installPage == "solutions" -> InstallSolutions(vm, padding)
+                    vm.tab == 1 && vm.installPage == "tutorials" -> InstallTutorialIndex(vm, padding)
                     vm.tab == 1 -> InstallScreen(vm, padding)
                     else -> SettingsScreen(vm, padding)
                 }
@@ -98,10 +103,7 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
             val act = {
                 when (vm.tab) {
                     0 -> vm.searchOpen = !vm.searchOpen
-                    1 -> {
-                        vm.refreshLocal()
-                        vm.flash("已重新扫描")
-                    }
+                    1 -> vm.installPage = "tutorials"
                     else -> vm.toggleDynamic()
                 }
             }
@@ -115,3 +117,15 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
         }
     }
 }
+
+@Composable
+fun PaddingValues.asPagePadding(horizontal: Dp = 20.dp, vertical: Dp = 12.dp): PaddingValues {
+    val direction = LocalLayoutDirection.current
+    return PaddingValues(
+        start = calculateStartPadding(direction) + horizontal,
+        end = calculateEndPadding(direction) + horizontal,
+        top = calculateTopPadding() + vertical,
+        bottom = calculateBottomPadding() + vertical,
+    )
+}
+

@@ -92,8 +92,7 @@ fun ExpressiveBottomBar(
                 .animateContentSize(if (reduce) snap() else spring(dampingRatio = 0.9f, stiffness = 420f))
                 .height(64.dp)
                 .clip(RoundedCornerShape(28.dp))
-                .hazeEffect(haze, HazeMaterials.thin(MaterialTheme.colorScheme.surfaceContainer))
-                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -121,14 +120,17 @@ fun ExpressiveNavRail(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         entries.forEachIndexed { index, entry ->
+            val scheme = MaterialTheme.colorScheme
             val on = index == selected
+            val container = if (on) scheme.primaryContainer else scheme.surface
+            val content = contrasting(container, if (on) scheme.onPrimaryContainer else scheme.onSurface)
             Column(
                 Modifier
                     .height(64.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
                     .clip(RoundedCornerShape(if (on) 16.dp else 8.dp))
-                    .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                    .background(container)
                     .clickable { onSelect(index) }
                     .semantics {
                         role = Role.Tab
@@ -138,8 +140,8 @@ fun ExpressiveNavRail(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Symbol(entry.icon, filled = on, size = 22.dp)
-                Text(entry.label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                Symbol(entry.icon, filled = on, size = 22.dp, tint = content)
+                Text(entry.label, style = MaterialTheme.typography.labelMedium, color = content, maxLines = 1)
             }
         }
         Spacer(Modifier.weight(1f))
@@ -177,13 +179,16 @@ private fun ExpressiveNavItem(icon: String, label: String, selected: Boolean, re
     val haptic = LocalHapticFeedback.current
     val fade = if (reduce) snap<Float>() else spring<Float>(dampingRatio = 0.86f, stiffness = 380f)
     val grow = if (reduce) snap<IntSize>() else spring(dampingRatio = 0.86f, stiffness = 380f)
+    val pill = MaterialTheme.colorScheme.primary
+    val onPill = contrasting(pill, MaterialTheme.colorScheme.onPrimary)
+    val idle = MaterialTheme.colorScheme.onSurface
     val background by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primary else ColorTransparent,
+        if (selected) pill else ColorTransparent,
         if (reduce) snap() else spring(dampingRatio = 0.86f, stiffness = 380f),
         label = "nav-pill",
     )
     val iconTint by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        if (selected) onPill else idle,
         if (reduce) snap() else spring(dampingRatio = 0.86f, stiffness = 380f),
         label = "nav-icon",
     )
@@ -214,7 +219,7 @@ private fun ExpressiveNavItem(icon: String, label: String, selected: Boolean, re
         AnimatedVisibility(visible = selected, enter = expandHorizontally(grow) + fadeIn(fade), exit = shrinkHorizontally(grow) + fadeOut(fade)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.width(8.dp))
-                Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
+                Text(label, style = MaterialTheme.typography.labelLarge, color = onPill, maxLines = 1)
             }
         }
     }

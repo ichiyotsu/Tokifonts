@@ -26,9 +26,30 @@ class ScreenshotTest {
 
     @Test fun solutions() {
         val vm = ready(false)
-        vm.installPage = "solutions"
+        vm.installPage = "tutorials"
         show(vm, 1)
-        rule.onRoot().captureRoboImage("build/shots/solutions.png")
+        rule.onRoot().captureRoboImage("build/shots/tutorials.png")
+    }
+
+    @Test fun tutorialsDark() {
+        val vm = ready(true)
+        vm.installPage = "tutorials"
+        show(vm, 1)
+        rule.onRoot().captureRoboImage("build/shots/tutorials-dark.png")
+    }
+
+    @Test fun tutorial() {
+        val vm = ready(false)
+        vm.installPage = "tutorial:samfonts"
+        show(vm, 1)
+        rule.onRoot().captureRoboImage("build/shots/tutorial.png")
+    }
+
+    @Test fun tutorialDark() {
+        val vm = ready(true)
+        vm.installPage = "tutorial:samfonts"
+        show(vm, 1)
+        rule.onRoot().captureRoboImage("build/shots/tutorial-dark.png")
     }
 
     @Test fun detailShowsBundledFont() {
@@ -36,6 +57,13 @@ class ScreenshotTest {
         vm.openFamilyId = "google-sans"
         show(vm, 0)
         rule.onRoot().captureRoboImage("build/shots/detail.png")
+    }
+
+    @Test fun detailDark() {
+        val vm = ready(true)
+        vm.openFamilyId = "google-sans"
+        show(vm, 0)
+        rule.onRoot().captureRoboImage("build/shots/detail-dark.png")
     }
 
     private fun ready(dark: Boolean): FontsViewModel {
