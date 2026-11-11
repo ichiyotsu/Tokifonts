@@ -207,6 +207,9 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
 
     fun checkUpdate(manual: Boolean) {
         if (updateChecking || updateDownloading) return
+        // 已有下载好待安装的更新时不再重查：旋转重建会重跑启动检查，成功回调会清掉
+        // pendingUpdate，用户就得把同一个 APK 再下载一遍。
+        if (pendingUpdate != null) return
         if (!manual && updateDismissed) return
         if (manual) updateDismissed = false
         updateChecking = true
@@ -240,9 +243,12 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     fun downloadUpdate() {
         val offer = updateOffer ?: return
         if (updateDownloading) return
+        // 必须同步置位（和 checkUpdate 一样）：置位若放进协程的 onMain 里，连点两次时
+        // 第二次的入口检查会在标志生效前通过，两个协程会并发写同一个 APK 文件。
+        updateDownloading = true
+        updateProgress = 0f
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                onMain { updateDownloading = true; updateProgress = 0f }
                 val file = File(getApplication<Application>().cacheDir, "updates/${offer.assetName}")
                 AppUpdate.download(offer, file) { progress -> onMain { updateProgress = progress } }
                 onMain { pendingUpdate = file; updateDownloading = false }
@@ -257,13 +263,19 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
 
     fun refreshLocal() {
         val parsed = catalog ?: return
+        // 进程被杀遗留的 .part 没有任何代码路径会删（storedBytes 也不统计它）：刷新时顺手清掉。
+        store.cleanOrphanParts(jobs.keys.toSet())
         val next = mutableMapOf<String, FaceStatus>()
         for ((id, state) in downloads) {
             if (state is FaceStatus.Downloading || state is FaceStatus.Queued || state is FaceStatus.Failed) next[id] = state
         }
         for (face in parsed.families.flatMap { it.faces }) {
             val file = store.file(face)
-            if (file.exists() && file.length() > 0L) next[face.id] = FaceStatus.Ready(file)
+            // 只判存在不够：解压/下载失败残留的坏文件至少要过一次文件头校验才标 Ready，
+            // 与 download() 落盘后的最终校验口径一致（按 dest 扩展名判格式）。
+            if (file.exists() && file.length() > 0L && FontStore.looksValid(file, file.extension)) {
+                next[face.id] = FaceStatus.Ready(file)
+            }
         }
         downloads = next
         cacheBytes = store.storedBytes()
@@ -274,7 +286,10 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         if (state is FaceStatus.Ready || state is FaceStatus.Downloading || state is FaceStatus.Queued) return
         if (jobs.containsKey(face.id)) return
         setStatus(face.id, FaceStatus.Queued)
-        val job = viewModelScope.launch(Dispatchers.IO) {
+        // LAZY 启动 + jobRef 回填：先把 job 登记进 jobs 再 start，保证 finally 按值删除时
+        // 引用必然已赋值、且协程不可能在登记前就跑完（原先是先 launch 后赋值，有极小竞态窗口）。
+        var jobRef: Job? = null
+        val job = viewModelScope.launch(Dispatchers.IO, start = kotlinx.coroutines.CoroutineStart.LAZY) {
             var acquired = false
             try {
                 slots.acquire()
@@ -283,8 +298,12 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 setStatus(face.id, FaceStatus.Downloading(0f))
                 store.download(face) { progress -> setStatus(face.id, FaceStatus.Downloading(progress)) }
                 onMain {
-                    downloads = downloads + (face.id to FaceStatus.Ready(store.file(face)))
-                    cacheBytes = store.storedBytes()
+                    // 解压是阻塞调用，取消打不断：取消/清除全部之后任务仍会走到这里。
+                    // 已取消的 job 不许把状态写回 Ready，否则界面上“复活”为已下载。
+                    if (jobRef?.isCancelled == false) {
+                        downloads = downloads + (face.id to FaceStatus.Ready(store.file(face)))
+                        cacheBytes = store.storedBytes()
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 store.part(face).delete()
@@ -296,10 +315,12 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             } finally {
                 if (acquired) slots.release()
                 // 按值删除：取消后立刻重下同一字体时，旧任务的 finally 不能抹掉新任务的登记。
-                jobs.remove(face.id, job)
+                jobRef?.let { jobs.remove(face.id, it) }
             }
         }
+        jobRef = job
         jobs[face.id] = job
+        job.start()
     }
 
     fun downloadAll(family: FontFamily) {

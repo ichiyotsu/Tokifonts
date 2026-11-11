@@ -121,11 +121,24 @@ class FontStore(private val context: Context) {
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("无法写入下载目录")
-        resolver.openOutputStream(uri)?.use { out -> source.inputStream().use { it.copyTo(out) } } ?: error("无法写入下载目录")
+        try {
+            resolver.openOutputStream(uri)?.use { out -> source.inputStream().use { it.copyTo(out) } } ?: error("无法写入下载目录")
+        } catch (error: Throwable) {
+            // 写失败要删掉刚插入的 IS_PENDING 条目，否则下载库里留下一条用户看不见的幽灵记录。
+            runCatching { resolver.delete(uri, null, null) }
+            throw error
+        }
         values.clear()
         values.put(MediaStore.Downloads.IS_PENDING, 0)
         resolver.update(uri, values, null, null)
         return face.exportName
+    }
+
+    /** 删掉没有任何进行中任务的 .part 残片：进程被杀时 finally/cancel 都跑不到，残片只能在刷新时顺手清。 */
+    fun cleanOrphanParts(activeIds: Set<String>) {
+        dir.listFiles().orEmpty()
+            .filter { it.isFile && it.name.endsWith(".part") && it.name.removeSuffix(".part") !in activeIds }
+            .forEach { it.delete() }
     }
 
     fun share(face: FontFace) = send(face, Intent.ACTION_SEND, "分享字体文件")
@@ -176,6 +189,9 @@ class FontStore(private val context: Context) {
                                 }
                             }
                         }
+                        // 服务端声明了长度时，读到的字节数必须对得上：弱网/代理截断后只靠
+                        // 12 字节文件头校验会把半截文件当成功装上，这里当场判失败好切 mirror。
+                        if (total > 0 && read != total) throw IOException("下载不完整（$read/$total）")
                     }
                 }
             }
@@ -193,10 +209,11 @@ class FontStore(private val context: Context) {
      */
     private fun extractZip(archive: File, dest: File, innerName: String) {
         ZipFile(archive).use { zip ->
-            val wanted = innerName.substringAfterLast("/")
+            val wanted = innerName.replace('\\', '/').substringAfterLast("/")
             val entry = zip.entries().asSequence().firstOrNull { item ->
-                val name = item.name.substringAfterLast("/")
-                !item.isDirectory && (name.endsWith(".ttf") || name.endsWith(".otf")) &&
+                // 条目名统一分隔符再剥路径；扩展名忽略大小写，FONT.TTF 这类包不能误报“没有字体”。
+                val name = item.name.replace('\\', '/').substringAfterLast("/")
+                !item.isDirectory && (name.endsWith(".ttf", ignoreCase = true) || name.endsWith(".otf", ignoreCase = true)) &&
                     (wanted.isBlank() || name.equals(wanted, ignoreCase = true))
             } ?: if (wanted.isBlank()) {
                 error("压缩包里没有字体")
@@ -209,11 +226,11 @@ class FontStore(private val context: Context) {
 
     private fun extract7z(archive: File, dest: File, innerName: String) {
         SevenZFile(archive).use { seven ->
-            val wanted = innerName.substringAfterLast("/")
+            val wanted = innerName.replace('\\', '/').substringAfterLast("/")
             var entry = seven.nextEntry
             while (entry != null) {
-                val name = entry.name.substringAfterLast("/")
-                if (!entry.isDirectory && (name.endsWith(".ttf") || name.endsWith(".otf"))) {
+                val name = entry.name.replace('\\', '/').substringAfterLast("/")
+                if (!entry.isDirectory && (name.endsWith(".ttf", ignoreCase = true) || name.endsWith(".otf", ignoreCase = true))) {
                     if (wanted.isBlank() || name.equals(wanted, ignoreCase = true)) {
                         dest.outputStream().use { output ->
                             val buffer = ByteArray(8192)

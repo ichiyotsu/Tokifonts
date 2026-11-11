@@ -120,6 +120,9 @@ data class Catalog(
                     }
                 }
             } ?: emptyList()
+            // 逐条容错不等于根级也吞：families 缺失或全坏时返回空库会让 UI 只剩一片空白、
+            // 且 catalog != null 把重试挡死。根级损坏必须抛错，走 loadError + 重试路径。
+            if (families.isEmpty()) throw org.json.JSONException("catalog 缺少 families 或全部损坏")
             return Catalog(
                 dataVersion = root.optString("version"),
                 mergeNote = root.optString("mergeNote"),

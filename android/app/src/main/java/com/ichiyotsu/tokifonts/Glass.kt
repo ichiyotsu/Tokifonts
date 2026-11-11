@@ -18,6 +18,21 @@ import dev.chrisbanes.haze.blur.hazeBlur
  * 模糊 30.dp、噪点 0.02；smoke 黑 0.03（浅）/ 0.16（深），frost 白 0.10（浅）/ 0.08（深）；
  * 设备不支持模糊时 fallback 黑 0.30（浅）/ 0.55（深）。
  */
+// HazeBlurStyle 按 identity 比较：每次重组新建一个都会让效果节点重建。
+// 默认参数（30dp / 0.02）的两档样式提升为常量复用，只有调用方改了参数才新建。
+private val GlassStyleLight = HazeBlurStyle {
+    blurRadius(30.dp)
+    noiseFactor(0.02f)
+    colorEffects(glassTints(false).map { tint -> HazeColorEffect.tint(tint) })
+    fallbackColorEffect(HazeColorEffect.tint(glassFallback(false)))
+}
+private val GlassStyleDark = HazeBlurStyle {
+    blurRadius(30.dp)
+    noiseFactor(0.02f)
+    colorEffects(glassTints(true).map { tint -> HazeColorEffect.tint(tint) })
+    fallbackColorEffect(HazeColorEffect.tint(glassFallback(true)))
+}
+
 fun Modifier.tokiGlass(
     hazeState: HazeState,
     blurRadius: Dp = 30.dp,
@@ -25,11 +40,15 @@ fun Modifier.tokiGlass(
     noise: Float = 0.02f,
 ): Modifier = hazeBlur(
     input = HazeInput.Sources(hazeState),
-    style = HazeBlurStyle {
-        blurRadius(blurRadius)
-        noiseFactor(noise)
-        colorEffects(glassTints(dark).map { tint -> HazeColorEffect.tint(tint) })
-        fallbackColorEffect(HazeColorEffect.tint(glassFallback(dark)))
+    style = if (blurRadius == 30.dp && noise == 0.02f) {
+        if (dark) GlassStyleDark else GlassStyleLight
+    } else {
+        HazeBlurStyle {
+            blurRadius(blurRadius)
+            noiseFactor(noise)
+            colorEffects(glassTints(dark).map { tint -> HazeColorEffect.tint(tint) })
+            fallbackColorEffect(HazeColorEffect.tint(glassFallback(dark)))
+        }
     },
 )
 

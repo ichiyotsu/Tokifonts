@@ -259,7 +259,7 @@ private val ContrastVariantOnDark = Color(0xFFC5C8BA) // Matcha 深色 onSurface
 private val ContrastVariantOnLight = Color(0xFF44483D) // Matcha 浅色 onSurfaceVariant
 
 private fun androidx.compose.material3.ColorScheme.ensureTextContrast(dark: Boolean): androidx.compose.material3.ColorScheme {
-    // 动态取色可能给出对比不足的组合：所有成对的 on 色都按 0.45 的亮度差兜底，
+    // 动态取色可能给出对比不足的组合：所有成对的 on 色都按 WCAG 对比度 4.5:1 兜底，
     // 包括 primary/secondary/tertiary/error 的本体与容器、inverse 一对；
     // onSurface 除了绝对亮度阈值，还要对字体预览条的底色 surfaceContainerHighest 再验一遍。
     val surfaceText = if (dark) {
@@ -291,9 +291,22 @@ private fun androidx.compose.material3.ColorScheme.ensureTextContrast(dark: Bool
     )
 }
 
+/** WCAG 对比度：相对亮度之比，4.5:1 是正文文字的达标线。亮度差与它不等价，不能混用。 */
+private fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance()
+    val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
 internal fun contrasting(background: Color, foreground: Color): Color {
-    if (kotlin.math.abs(background.luminance() - foreground.luminance()) >= 0.45f) return foreground
-    return if (background.luminance() > 0.5f) ContrastOnLight else ContrastOnDark
+    if (contrastRatio(background, foreground) >= 4.5f) return foreground
+    // 换色时在深/浅两个候选里按对比度取大者，不按背景亮度一刀切：
+    // 中间亮度的背景上，任一固定候选都可能只有 1.x:1，取大者才真正达标。
+    return if (contrastRatio(background, ContrastOnLight) >= contrastRatio(background, ContrastOnDark)) {
+        ContrastOnLight
+    } else {
+        ContrastOnDark
+    }
 }
 
 @OptIn(ExperimentalTextApi::class)

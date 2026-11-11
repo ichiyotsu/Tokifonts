@@ -27,7 +27,8 @@ fun UpdateDialog(vm: FontsViewModel) {
         val file = vm.pendingUpdate
         if (file != null && context.packageManager.canRequestPackageInstalls()) {
             AppUpdate.install(context, file)
-        } else {
+        } else if (file != null) {
+            // 只有手里真有待安装文件、却没拿到授权时才提示；授权往返期间状态已变（file 为 null）时静默。
             vm.flash("需要允许安装未知应用才能安装更新")
         }
     }
