@@ -124,11 +124,15 @@ private fun FontFamily.matches(query: String): Boolean {
 
 @Composable
 private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) {
-    val preview = family.initialFace()
+    // 预览用“已下载优先”的 face：在详情页下了别的字重，列表也要拿那个文件的字形来显示；
+    // 旧逻辑只认 initialFace，下了非默认 face 时列表预览永远是系统字体，等于没按字体文件显示。
+    val preview = vm.previewFace(family)
+    val downloadTarget = family.initialFace()
     val ready = family.faces.count { vm.status(it.id) is FaceStatus.Ready }
+    val previewReady = preview?.let { vm.status(it.id) is FaceStatus.Ready } ?: false
     var typeface by remember(preview?.id) { mutableStateOf(preview?.let { vm.cachedTypeface(it, null) }) }
-    LaunchedEffect(preview?.id, ready) {
-        typeface = preview?.takeIf { vm.status(it.id) is FaceStatus.Ready }?.let { vm.typefaceFor(it, null) }
+    LaunchedEffect(preview?.id, previewReady) {
+        typeface = if (previewReady) preview?.let { vm.typefaceFor(it, null) } else null
     }
     Surface(
         onClick = { vm.openFamilyId = family.id },
@@ -173,8 +177,8 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (preview != null && vm.status(preview.id) !is FaceStatus.Ready) {
-                TextButton(onClick = { vm.download(preview) }) { Text("下载预览") }
+            if (!previewReady && downloadTarget != null) {
+                TextButton(onClick = { vm.download(downloadTarget) }) { Text("下载预览") }
             }
         }
     }
@@ -194,9 +198,12 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
     var typeface by remember(selected?.id) {
         mutableStateOf(selected?.let { vm.cachedTypeface(it, null) })
     }
-    LaunchedEffect(selected?.id, axis, state is FaceStatus.Ready) {
+    val selectedReady = state is FaceStatus.Ready
+    LaunchedEffect(selected?.id, axis, selectedReady) {
         val face = selected ?: return@LaunchedEffect
-        if (vm.status(face.id) is FaceStatus.Ready) typeface = vm.typefaceFor(face, if (face.variable) axis.toInt() else null)
+        // 非 Ready 时必须把 typeface 清空：旧逻辑只在 Ready 时赋值，删掉本地文件后
+        // 本地状态还攥着旧 Typeface 对象，预览会继续拿已删字体的字形充数。
+        typeface = if (selectedReady) vm.typefaceFor(face, if (face.variable) axis.toInt() else null) else null
     }
     LaunchedEffect(selected?.id) {
         val face = selected ?: return@LaunchedEffect
@@ -303,6 +310,17 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
 
 @Composable
 private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: AndroidTypeface?, size: Int) {
+    Text("预设参考", style = MaterialTheme.typography.labelLarge)
+    ChipRow {
+        PREVIEW_PRESETS.forEach { (label, text) ->
+            FilterChip(
+                selected = vm.previewFor(familyId) == text,
+                onClick = { vm.setFamilyPreview(familyId, text) },
+                label = { Text(label) },
+                shape = ExpressiveChipShape,
+            )
+        }
+    }
     OutlinedTextField(
         value = vm.previewFor(familyId),
         onValueChange = { vm.setFamilyPreview(familyId, it) },

@@ -137,6 +137,13 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
 
     fun status(id: String): FaceStatus = downloads[id] ?: FaceStatus.Absent
 
+    /**
+     * 预览渲染实际用的 face：已下载的优先（规则见 [FontFamily.previewFace]）。
+     * 读 [downloads] 状态，下载完成/删除时调用方组合会重算，预览随即换成（或撤下）真实字形。
+     */
+    fun previewFace(family: FontFamily): FontFace? =
+        family.previewFace(downloads.filterValues { it is FaceStatus.Ready }.keys)
+
     fun setGroup(id: String) {
         groupId = id
         val section = catalog?.sections?.firstOrNull { it.id == sectionId }

@@ -57,15 +57,23 @@ data class FontFamily(
     val sources: List<String>,
     val faces: List<FontFace>,
 ) {
-    fun initialFace(): FontFace? {
-        val ranked = faces.sortedWith(
-            compareBy<FontFace> { it.variable }
-                .thenBy { it.italic }
-                .thenBy { if (it.optical == "Medium" || it.optical.isEmpty()) 0 else 1 }
-                .thenBy { kotlin.math.abs(it.weight - 400) },
-        )
-        return ranked.firstOrNull()
-    }
+    /** 预览选 face 的统一排序：非可变优先、非斜体优先、常规光学尺寸优先、字重离 400 最近优先。 */
+    fun rankedFaces(): List<FontFace> = faces.sortedWith(
+        compareBy<FontFace> { it.variable }
+            .thenBy { it.italic }
+            .thenBy { if (it.optical == "Medium" || it.optical.isEmpty()) 0 else 1 }
+            .thenBy { kotlin.math.abs(it.weight - 400) },
+    )
+
+    fun initialFace(): FontFace? = rankedFaces().firstOrNull()
+
+    /**
+     * 列表卡和详情页预览实际渲染用的 face：已下载（id 在 [readyIds] 里）的按 [rankedFaces]
+     * 顺序取第一个——下了哪个字重就用哪个的字形预览，不能只认默认 face；
+     * 一个都没下载时退回 [initialFace]，此时它只作“下载预览”的目标，不渲染真实字形。
+     */
+    fun previewFace(readyIds: Set<String>): FontFace? =
+        rankedFaces().firstOrNull { it.id in readyIds } ?: initialFace()
 }
 
 data class Catalog(
@@ -200,6 +208,19 @@ object FontUrls {
         return "https://raw.githubusercontent.com/$repo/$ref/$encoded"
     }
 }
+
+/**
+ * 详情页预览的预设参考文本：（短标签，全文）。点一下就把该字体的预览文字换成这段，
+ * 不用自己现想句子；它和自定义输入走同一条通道——选预设就是把全文设为该字体的预览文字，
+ * 之后随时能在输入框里改；输入框清空时，列表卡会回退到默认文本展示。
+ */
+val PREVIEW_PRESETS: List<Pair<String, String>> = listOf(
+    "兰亭序" to "永和九年，岁在癸丑",
+    "简繁对照" to "字体之美，源于细节；字體之美，源於細節",
+    "英文字母" to "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz",
+    "数字标点" to "0123456789 ，。、；：？！（）【】％＠＃＆＊",
+    "日文假名" to "いろはにほへと ちりぬるを アイウエオカキクケコ",
+)
 
 fun Long.toSizeLabel(): String {
     if (this < 1024) return "$this B"
