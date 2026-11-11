@@ -3,17 +3,20 @@ package com.ichiyotsu.tokifonts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 internal data class InstallerTool(
@@ -38,7 +41,7 @@ internal val InstallerTools = listOf(
         officialLabel = "GitHub 仓库",
         officialUrl = "https://github.com/fahadalijaved/SamFonts",
         steps = listOf(
-            "从上面的下载页安装 SamFonts。三星可能会弹出 Knox 提示，按你自己的判断处理。",
+            "点上面的「下载安装包」安装 SamFonts。三星可能会弹出 Knox 提示，按你自己的判断处理。",
             "在 tokifonts 里把要用的字体保存到「下载」，或点「用其他应用打开」。",
             "打开 SamFonts，按应用里的字体方式来。没有 root 时先试它提供的普通方式；已经跑着 Shizuku 时，再在应用里改用 Shizuku 并授权。",
             "选中字体并安装。然后到系统设置的显示、字体大小和样式里切换。",
@@ -54,7 +57,7 @@ internal val InstallerTools = listOf(
         officialLabel = "同一个 GitHub 仓库",
         officialUrl = "https://github.com/fahadalijaved/SamFonts",
         steps = listOf(
-            "安装文件名带 SamFontsPro 的那一份，不要和普通版搞混。",
+            "点上面的「下载 Pro 安装包」，安装文件名带 SamFontsPro 的那一份，不要和普通版搞混。",
             "之后的用法和 SamFonts 一样：从 tokifonts 导出字体文件，在 SamFonts Pro 里安装，再去系统字体设置里选用。",
         ),
         caution = "第三方网站上的「SamFonts Pro」安装包没有拿来当作官方来源。这里只用该仓库 Release 里的文件。",
@@ -68,7 +71,7 @@ internal val InstallerTools = listOf(
         officialLabel = "官方页面",
         officialUrl = "https://zfont.github.io/",
         steps = listOf(
-            "用上面的 GitHub 安装包安装。官网也写了应用商店地址，那是另一条分发渠道。",
+            "点上面的「下载 GitHub 版」安装。官网也写了应用商店地址，那是另一条分发渠道。",
             "在 zFont 里导入 tokifonts 保存的 ttf 或 otf，或从它自己的字库里选。",
             "按手机品牌选对应的应用方式。zFont 的说明把 Shizuku 写成 Android 12 以后比较稳的一种文件处理方式。",
             "先预览，再应用。应用之后到系统的字体设置里确认。",
@@ -85,7 +88,7 @@ internal val InstallerTools = listOf(
         officialUrl = "https://github.com/nanoturtle1145/root-my-s24",
         steps = listOf(
             "先读仓库 README，确认你的机型和固件在它列出的范围内。不匹配就不要安装。",
-            "Release 里有好几份安装包，按项目说明选对应机型的那一份。",
+            "点上面的「打开 Releases」：Release 里有好几份安装包，按项目说明选对应机型的那一份。",
             "这个工具的目的是取得 KernelSU。取得之后，重启可能会失效，细节以项目自己的说明为准。",
             "字体仍然要交给 SamFonts 或 zFont 这类安装器。tokifonts 只负责把字体文件下载到本机。",
         ),
@@ -101,7 +104,7 @@ internal val InstallerTools = listOf(
         officialUrl = "https://github.com/BuSung-dev/Root-My-Galaxy",
         steps = listOf(
             "打开仓库，看它支持哪些机型和内核版本。应用会按机型和内核去选载荷，不在列表里就不要试。",
-            "从 Releases 安装它发布的包。项目写了可以用 Shizuku 作为其中一种运行方式。",
+            "点上面的「打开 Releases」，从 Releases 安装它发布的包。项目写了可以用 Shizuku 作为其中一种运行方式。",
             "如果它报告 KernelSU 已经可用，再给换字体应用或 Shizuku 授权。",
             "然后用 tokifonts 下载的字体，在 SamFonts 或 zFont 里安装。",
         ),
@@ -116,7 +119,7 @@ internal val InstallerTools = listOf(
         officialLabel = "官方网站",
         officialUrl = "https://shizuku.rikka.app/",
         steps = listOf(
-            "从 GitHub Releases 或 Play 商店安装。Play 商店包名是 moe.shizuku.privileged.api。",
+            "点上面的「打开 Releases」从 GitHub Releases 安装，或去 Play 商店安装。Play 商店包名是 moe.shizuku.privileged.api。",
             "按官网说明打开开发者选项，用无线调试或电脑上的 adb 把 Shizuku 启动起来。",
             "看到它在运行之后，打开 SamFonts 或 zFont，选择 Shizuku，并在弹出的授权里允许。",
             "回到 tokifonts，把字体保存或分享给那个安装器。",
@@ -169,6 +172,7 @@ fun InstallTutorialIndex(vm: FontsViewModel, padding: PaddingValues) {
 
 @Composable
 fun InstallTutorial(vm: FontsViewModel, id: String, padding: PaddingValues) {
+    val context = LocalContext.current
     val tool = InstallerTools.firstOrNull { it.id == id }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
@@ -181,6 +185,12 @@ fun InstallTutorial(vm: FontsViewModel, id: String, padding: PaddingValues) {
         }
         Text(tool.name, style = MaterialTheme.typography.displaySmallEmphasized)
         Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        // 步骤第一步就要用到这个工具的下载/官方入口：直接放在本页顶部，和安装页同一份
+        // InstallerTools 数据、同一组链接，不用再返回两级去安装页找（文案里的“上面的”指的就是这里）。
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
+            OutlinedButton(onClick = { if (!openLink(context, tool.officialUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.officialLabel) }
+        }
         tool.steps.forEachIndexed { index, step ->
             Text("${index + 1}. $step", style = MaterialTheme.typography.bodyLarge)
         }

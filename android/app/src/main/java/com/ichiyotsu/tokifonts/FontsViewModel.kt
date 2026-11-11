@@ -236,8 +236,19 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     }
 
     fun dismissUpdate() {
+        // 下载进行中关弹窗（点“以后再说”或点弹窗外）＝顺带取消下载：不停的话连接还在，
+        // 后台会继续把更新包下完，白耗流量。状态复位由下载协程的取消分支完成。
+        // 已下完待安装时 updateDownloading 已是 false，这里不会碰 pendingUpdate，
+        // 那个包该留着等用户回来点“安装”，不能因为关一次弹窗就删掉。
+        if (updateDownloading) AppUpdate.cancelDownload()
         updateDismissed = true
         updateOffer = null
+    }
+
+    /** 弹窗里点“取消下载”：只掐下载，弹窗保持打开，取消完成后可立刻重新下载。不弹任何提示。 */
+    fun cancelUpdateDownload() {
+        if (!updateDownloading) return
+        AppUpdate.cancelDownload()
     }
 
     fun downloadUpdate() {
@@ -247,18 +258,35 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         // 第二次的入口检查会在标志生效前通过，两个协程会并发写同一个 APK 文件。
         updateDownloading = true
         updateProgress = 0f
-        viewModelScope.launch(Dispatchers.IO) {
+        // LAZY + jobRef 回填（与字体下载同款）：先登记再 start，
+        // 这样取消之后，迟到的成功/失败回调都能凭 jobRef 认出“已经取消了”，不会再把状态写回去。
+        var jobRef: Job? = null
+        val job = viewModelScope.launch(Dispatchers.IO, start = kotlinx.coroutines.CoroutineStart.LAZY) {
             try {
                 val file = File(getApplication<Application>().cacheDir, "updates/${offer.assetName}")
                 AppUpdate.download(offer, file) { progress -> onMain { updateProgress = progress } }
-                onMain { pendingUpdate = file; updateDownloading = false }
+                onMain {
+                    if (jobRef?.isCancelled == false) {
+                        pendingUpdate = file
+                        updateDownloading = false
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                // 用户取消：AppUpdate 已把连接掐断并删掉残包，这里只复位状态，不弹“下载失败”。
+                onMain {
+                    updateDownloading = false
+                    updateProgress = 0f
+                }
+                throw cancelled
             } catch (error: Throwable) {
                 onMain {
                     updateDownloading = false
-                    flash(error.message ?: "下载更新失败")
+                    if (jobRef?.isCancelled == false) flash(error.message ?: "下载更新失败")
                 }
             }
         }
+        jobRef = job
+        job.start()
     }
 
     fun refreshLocal() {
