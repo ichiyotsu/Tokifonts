@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
@@ -80,6 +81,10 @@ private val ExpressiveDark = darkColorScheme(
     tertiaryContainer = Color(0xFF633B48),
     onTertiaryContainer = Color(0xFFFFD8E4),
     surface = Color(0xFF141218),
+    onSurface = Color(0xFFF6F1FA),
+    onSurfaceVariant = Color(0xFFE0D7EA),
+    outline = Color(0xFFB4A9C4),
+    outlineVariant = Color(0xFF6E6578),
     surfaceContainer = Color(0xFF211F26),
     surfaceContainerHigh = Color(0xFF2B2930),
     surfaceContainerHighest = Color(0xFF36343B),
@@ -112,12 +117,22 @@ fun TokiTheme(dark: Boolean = isSystemInDarkTheme(), dynamic: Boolean = true, co
             dark -> ExpressiveDark
             else -> ExpressiveLight
         }
-    }.getOrElse { if (dark) ExpressiveDark else ExpressiveLight }
+    }.getOrElse { if (dark) ExpressiveDark else ExpressiveLight }.readableDarkText(dark)
     MaterialExpressiveTheme(
         colorScheme = scheme,
         motionScheme = MotionScheme.expressive(),
         typography = Typography().withFont(GoogleSans),
         content = content,
+    )
+}
+
+/** 深色下把正文和次要文字抬到能看清的亮度。动态取色如果给得太暗，也按同样的下限补。 */
+private fun androidx.compose.material3.ColorScheme.readableDarkText(dark: Boolean): androidx.compose.material3.ColorScheme {
+    if (!dark) return this
+    return copy(
+        onSurface = if (onSurface.luminance() < 0.78f) Color(0xFFF6F1FA) else onSurface,
+        onSurfaceVariant = if (onSurfaceVariant.luminance() < 0.62f) Color(0xFFE0D7EA) else onSurfaceVariant,
+        outline = if (outline.luminance() < 0.32f) Color(0xFFB4A9C4) else outline,
     )
 }
 

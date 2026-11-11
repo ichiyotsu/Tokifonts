@@ -36,10 +36,27 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
         item {
             Text("安装", style = MaterialTheme.typography.displaySmallEmphasized)
             Text(
-                "字体先下载到本应用。Android 不允许普通应用直接写成系统字体，所以安装要交给系统的下载目录，或其他字体安装器。",
+                "字体先下载到本应用。Android 不允许普通应用直接写成系统字体，所以可以保存下来，再交给下面的安装器。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        item {
+            Surface(
+                onClick = { vm.installPage = "solutions" },
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("安装方案", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(
+                        "列出换字体时可能用到的应用。每个都有下载页和官方页面，教程单独放在下一层。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+            }
         }
         if (rows.isEmpty()) {
             item {

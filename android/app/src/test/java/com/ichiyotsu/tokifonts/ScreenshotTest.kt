@@ -17,32 +17,45 @@ import org.robolectric.annotation.GraphicsMode
 class ScreenshotTest {
     @get:Rule val rule = createComposeRule()
 
-    private fun shot(name: String, dark: Boolean, tab: Int) {
-        val vm = FontsViewModel(RuntimeEnvironment.getApplication())
-        vm.prepareForTest()
-        vm.dynamicColor = false
-        vm.persistTheme(if (dark) 2 else 1)
-        rule.setContent { TokiTheme(dark = dark, dynamic = false) { TokiApp(vm, tab) } }
-        rule.waitForIdle()
-        rule.mainClock.advanceTimeBy(800)
-        rule.waitForIdle()
-        rule.onRoot().captureRoboImage("build/shots/$name.png")
+    @Test fun library() = shot("library", false, 0)
+    @Test fun libraryDark() = shot("library-dark", true, 0)
+    @Test fun install() = shot("install", false, 1)
+    @Test fun installDark() = shot("install-dark", true, 1)
+    @Test fun settings() = shot("settings", false, 2)
+    @Test fun settingsDark() = shot("settings-dark", true, 2)
+
+    @Test fun solutions() {
+        val vm = ready(false)
+        vm.installPage = "solutions"
+        show(vm, 1)
+        rule.onRoot().captureRoboImage("build/shots/solutions.png")
     }
 
-    @Test fun library() = shot("library", false, 0)
-    @Test fun install() = shot("install", false, 1)
-    @Test fun settings() = shot("settings", true, 2)
-
     @Test fun detailShowsBundledFont() {
+        val vm = ready(false)
+        vm.openFamilyId = "google-sans"
+        show(vm, 0)
+        rule.onRoot().captureRoboImage("build/shots/detail.png")
+    }
+
+    private fun ready(dark: Boolean): FontsViewModel {
         val vm = FontsViewModel(RuntimeEnvironment.getApplication())
         vm.prepareForTest()
         vm.dynamicColor = false
-        vm.persistTheme(1)
-        vm.openFamilyId = "google-sans"
-        rule.setContent { TokiTheme(dark = false, dynamic = false) { TokiApp(vm, 0) } }
+        vm.checkOnLaunch = false
+        vm.persistTheme(if (dark) 2 else 1)
+        return vm
+    }
+
+    private fun show(vm: FontsViewModel, tab: Int) {
+        rule.setContent { TokiTheme(dark = vm.themeMode == 2, dynamic = false) { TokiApp(vm, tab) } }
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(800)
         rule.waitForIdle()
-        rule.onRoot().captureRoboImage("build/shots/detail.png")
+    }
+
+    private fun shot(name: String, dark: Boolean, tab: Int) {
+        show(ready(dark), tab)
+        rule.onRoot().captureRoboImage("build/shots/$name.png")
     }
 }

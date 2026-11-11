@@ -2,6 +2,7 @@ package com.ichiyotsu.tokifonts
 
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -88,7 +89,7 @@ fun ExpressiveBottomBar(
     ) {
         Row(
             Modifier
-                .animateContentSize(if (reduce) snap() else spring(dampingRatio = 0.72f, stiffness = 380f))
+                .animateContentSize(if (reduce) snap() else spring(dampingRatio = 0.9f, stiffness = 420f))
                 .height(64.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .hazeEffect(haze, HazeMaterials.thin(MaterialTheme.colorScheme.surfaceContainer))
@@ -174,15 +175,25 @@ private fun Modifier.pressScale(interaction: MutableInteractionSource, reduce: B
 private fun ExpressiveNavItem(icon: String, label: String, selected: Boolean, reduce: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val haptic = LocalHapticFeedback.current
-    val fade = if (reduce) snap<Float>() else spring<Float>(dampingRatio = 0.6f, stiffness = 440f)
-    val grow = if (reduce) snap<IntSize>() else spring(dampingRatio = 0.6f, stiffness = 440f)
+    val fade = if (reduce) snap<Float>() else spring<Float>(dampingRatio = 0.86f, stiffness = 380f)
+    val grow = if (reduce) snap<IntSize>() else spring(dampingRatio = 0.86f, stiffness = 380f)
+    val background by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else ColorTransparent,
+        if (reduce) snap() else spring(dampingRatio = 0.86f, stiffness = 380f),
+        label = "nav-pill",
+    )
+    val iconTint by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        if (reduce) snap() else spring(dampingRatio = 0.86f, stiffness = 380f),
+        label = "nav-icon",
+    )
     Row(
         Modifier
             .height(52.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else ColorTransparent)
+            .background(background)
             .clickable(interaction, ripple(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f))) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
                 onClick()
             }
             .pressScale(interaction, reduce)
@@ -198,7 +209,7 @@ private fun ExpressiveNavItem(icon: String, label: String, selected: Boolean, re
             icon,
             filled = selected,
             size = 22.dp,
-            tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = iconTint,
         )
         AnimatedVisibility(visible = selected, enter = expandHorizontally(grow) + fadeIn(fade), exit = shrinkHorizontally(grow) + fadeOut(fade)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -43,8 +43,10 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
         snackbar.showSnackbar(text)
         vm.consumeMessage()
     }
-    BackHandler(enabled = vm.openFamilyId != null || vm.searchOpen) {
+    BackHandler(enabled = vm.openFamilyId != null || vm.searchOpen || (vm.tab == 1 && vm.installPage != "fonts")) {
         when {
+            vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> vm.installPage = "solutions"
+            vm.tab == 1 && vm.installPage != "fonts" -> vm.installPage = "fonts"
             vm.openFamilyId != null -> vm.openFamilyId = null
             vm.searchOpen -> vm.searchOpen = false
         }
@@ -82,6 +84,8 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
                     }
                     vm.tab == 0 && vm.openFamilyId != null -> FontDetail(vm, vm.openFamilyId!!, padding)
                     vm.tab == 0 -> LibraryScreen(vm, padding)
+                    vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> InstallTutorial(vm, vm.installPage.removePrefix("tutorial:"), padding)
+                    vm.tab == 1 && vm.installPage == "solutions" -> InstallSolutions(vm, padding)
                     vm.tab == 1 -> InstallScreen(vm, padding)
                     else -> SettingsScreen(vm, padding)
                 }
@@ -89,6 +93,7 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
             val select = { index: Int ->
                 vm.tab = index
                 vm.openFamilyId = null
+                vm.installPage = "fonts"
             }
             val act = {
                 when (vm.tab) {
@@ -106,6 +111,7 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
                 ExpressiveBottomBar(Pages, vm.tab, select, actionIcon, actionLabel, act, haze, Modifier.align(Alignment.BottomCenter))
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = if (wide) 24.dp else nav + 88.dp))
+            UpdateDialog(vm)
         }
     }
 }

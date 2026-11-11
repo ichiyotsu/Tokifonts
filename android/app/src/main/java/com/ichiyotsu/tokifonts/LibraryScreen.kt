@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -38,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +59,7 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("字体库", style = MaterialTheme.typography.displaySmallEmphasized)
+            Text("Tokifonts", style = MaterialTheme.typography.displaySmallEmphasized)
             Text(
                 "${catalog.families.size} 套 · ${catalog.families.sumOf { it.faces.size }} 个文件",
                 style = MaterialTheme.typography.bodyMedium,
@@ -209,7 +208,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
         if (family.alias.isNotBlank()) Text("也叫 ${family.alias}", style = MaterialTheme.typography.bodyMedium)
         if (family.credit.isNotBlank()) Text("提供：${family.credit}", style = MaterialTheme.typography.bodyMedium)
         Text(family.tags.joinToString(" · "), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-        PreviewBlock(vm.previewText, typeface, previewSize)
+        PreviewEditor(vm, typeface, previewSize)
         if (selected == null) {
             Text(family.statusDetail.ifBlank { "这个名字还没有字体文件。" }, style = MaterialTheme.typography.bodyLarge)
         } else {
@@ -277,26 +276,30 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
         }
         InfoCard("介绍", family.summary)
         InfoCard("许可", family.license)
-        InfoCard("来源", family.sources.joinToString("、").ifBlank { "—" } + "\n\n" + catalog.mergeNote)
+        InfoCard("来源", family.sources.joinToString("、").ifBlank { "—" })
     }
 }
 
 @Composable
-private fun PreviewBlock(text: String, typeface: AndroidTypeface?, size: Int) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Text(
-            text = if (typeface == null) "下载后，这里会用字体文件本身来排这段文字。" else text,
-            modifier = Modifier.padding(20.dp),
+private fun PreviewEditor(vm: FontsViewModel, typeface: AndroidTypeface?, size: Int) {
+    OutlinedTextField(
+        value = vm.previewText,
+        onValueChange = vm::updatePreview,
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 3,
+        textStyle = TextStyle(
             fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
             fontSize = size.sp,
             lineHeight = (size * 1.35f).sp,
-            color = if (typeface == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-        )
-    }
+            color = MaterialTheme.colorScheme.onSurface,
+        ),
+        label = { Text("预览文字") },
+        supportingText = {
+            Text(if (typeface == null) "下载字体后，这段文字会改用字体文件显示" else "直接改这里，上面的字重和字号会作用在这段文字上")
+        },
+        shape = RoundedCornerShape(28.dp),
+    )
+    TextButton(onClick = vm::resetPreview) { Text("恢复默认预览文字") }
 }
 
 @Composable
