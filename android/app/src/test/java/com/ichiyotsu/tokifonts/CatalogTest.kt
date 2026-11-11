@@ -37,4 +37,31 @@ class CatalogTest {
         assertTrue(ping.urls().first().contains("ichiyotsu/Tokifonts/Pro/"))
         assertTrue(ping.urls()[1].contains("TokiFontsResource/Apple/"))
     }
+
+    @Test fun previewFacePrefersDownloadedFace() {
+        val catalog = Catalog.parse(File("src/main/assets/catalog.json").readText())
+        val pingfang = catalog.family("pingfang-sc")!!
+        val initial = pingfang.initialFace()!!
+        // 一个都没下载：退回默认 face，此时它只作“下载预览”的目标，不渲染真实字形
+        assertEquals(initial.id, pingfang.previewFace(emptySet())!!.id)
+        // 只下了另一个字重：预览必须用已下载的那个文件的字形，而不是默认 face
+        val other = pingfang.faces.first { it.id != initial.id }
+        assertEquals(other.id, pingfang.previewFace(setOf(other.id))!!.id)
+        // 全下了：按 ranked 顺序取第一个已下载的，就是默认 face 本身
+        val all = pingfang.faces.map { it.id }.toSet()
+        assertEquals(initial.id, pingfang.previewFace(all)!!.id)
+        // 没有任何 face 的家族：预览 face 为空，卡片只显示名称和状态
+        assertEquals(null, catalog.family("breeze-sans")!!.previewFace(all))
+    }
+
+    @Test fun previewPresetsCoverScripts() {
+        assertTrue(PREVIEW_PRESETS.size >= 5)
+        assertTrue(PREVIEW_PRESETS.all { it.first.isNotBlank() && it.second.isNotBlank() })
+        val texts = PREVIEW_PRESETS.map { it.second }
+        assertTrue(texts.any { it.contains('永') && it.contains('，') })
+        assertTrue(texts.any { it.contains('體') && it.contains('体') })
+        assertTrue(texts.any { it.contains('A') && it.contains('a') && it.contains('Z') && it.contains('z') })
+        assertTrue(texts.any { it.contains('0') && it.contains('9') && it.contains('？') })
+        assertTrue(texts.any { it.contains('あ') || it.contains('ア') })
+    }
 }
