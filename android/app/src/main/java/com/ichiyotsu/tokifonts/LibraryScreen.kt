@@ -54,8 +54,8 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             (query.isEmpty() || family.matches(query))
     }
     LazyColumn(
-        Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxSize(),
+        contentPadding = padding.asPagePadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -151,23 +151,15 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
             }
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
                 val loaded = typeface
-                if (loaded != null) {
-                    Text(
-                        text = vm.previewText.lineSequence().firstOrNull().orEmpty(),
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontFamily = ComposeFontFamily(ComposeTypeface(loaded)),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                } else {
-                    Text(
-                        "尚未用字体文件预览",
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = vm.previewFor(family.id).lineSequence().firstOrNull().orEmpty().ifBlank { DEFAULT_PREVIEW },
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontFamily = loaded?.let { ComposeFontFamily(ComposeTypeface(it)) },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             if (preview != null && vm.status(preview.id) !is FaceStatus.Ready) {
                 TextButton(onClick = { vm.download(preview) }) { Text("下载预览") }
@@ -197,10 +189,10 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
         if (face.bytes in 1..AUTO_PREVIEW_BYTES && vm.status(face.id) is FaceStatus.Absent) vm.download(face)
     }
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding(vertical = 8.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TextButton(onClick = { vm.openFamilyId = null }) { Text("返回字体库") }
+        TextButton(onClick = { vm.openFamilyId = null }) { Text("返回字体") }
         Text(family.name, style = MaterialTheme.typography.displaySmallEmphasized)
         if (family.nameEn.isNotBlank() && family.nameEn != family.name) {
             Text(family.nameEn, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -208,7 +200,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
         if (family.alias.isNotBlank()) Text("也叫 ${family.alias}", style = MaterialTheme.typography.bodyMedium)
         if (family.credit.isNotBlank()) Text("提供：${family.credit}", style = MaterialTheme.typography.bodyMedium)
         Text(family.tags.joinToString(" · "), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-        PreviewEditor(vm, typeface, previewSize)
+        PreviewEditor(vm, family.id, typeface, previewSize)
         if (selected == null) {
             Text(family.statusDetail.ifBlank { "这个名字还没有字体文件。" }, style = MaterialTheme.typography.bodyLarge)
         } else {
@@ -281,10 +273,10 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
 }
 
 @Composable
-private fun PreviewEditor(vm: FontsViewModel, typeface: AndroidTypeface?, size: Int) {
+private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: AndroidTypeface?, size: Int) {
     OutlinedTextField(
-        value = vm.previewText,
-        onValueChange = vm::updatePreview,
+        value = vm.previewFor(familyId),
+        onValueChange = { vm.setFamilyPreview(familyId, it) },
         modifier = Modifier.fillMaxWidth(),
         minLines = 3,
         textStyle = TextStyle(
@@ -295,11 +287,11 @@ private fun PreviewEditor(vm: FontsViewModel, typeface: AndroidTypeface?, size: 
         ),
         label = { Text("预览文字") },
         supportingText = {
-            Text(if (typeface == null) "下载字体后，这段文字会改用字体文件显示" else "直接改这里，上面的字重和字号会作用在这段文字上")
+            Text(if (vm.hasFamilyPreview(familyId)) "只改这一套字体。恢复后跟设置里的全局文字。" else "还没单独改过，现在用的是设置里的全局文字。")
         },
         shape = RoundedCornerShape(28.dp),
     )
-    TextButton(onClick = vm::resetPreview) { Text("恢复默认预览文字") }
+    TextButton(onClick = { vm.clearFamilyPreview(familyId) }) { Text("恢复为全局预览文字") }
 }
 
 @Composable

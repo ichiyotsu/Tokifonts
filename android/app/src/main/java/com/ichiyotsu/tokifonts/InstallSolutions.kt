@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-private data class InstallerTool(
+internal data class InstallerTool(
     val id: String,
     val name: String,
     val summary: String,
@@ -31,7 +31,7 @@ private data class InstallerTool(
     val caution: String,
 )
 
-private val InstallerTools = listOf(
+internal val InstallerTools = listOf(
     InstallerTool(
         id = "samfonts",
         name = "SamFonts",
@@ -144,10 +144,37 @@ private val InstallerTools = listOf(
 )
 
 @Composable
+fun InstallTutorialIndex(vm: FontsViewModel, padding: PaddingValues) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextButton(onClick = { vm.installPage = "fonts" }) { Text("返回安装") }
+        Text("教程", style = MaterialTheme.typography.displaySmallEmphasized, color = MaterialTheme.colorScheme.onBackground)
+        Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        Text(
+            "按各项目公开说明整理的使用顺序。不含利用细节。root 和改内核可能变砖、影响 Knox 或丢失数据。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        InstallerTools.forEach { tool ->
+            Surface(
+                onClick = { vm.installPage = "tutorial:${tool.id}" },
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(tool.name, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
 fun InstallSolutions(vm: FontsViewModel, padding: PaddingValues) {
     val context = LocalContext.current
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         TextButton(onClick = { vm.installPage = "fonts" }) { Text("返回安装") }
@@ -178,10 +205,10 @@ fun InstallSolutions(vm: FontsViewModel, padding: PaddingValues) {
 fun InstallTutorial(vm: FontsViewModel, id: String, padding: PaddingValues) {
     val tool = InstallerTools.firstOrNull { it.id == id }
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TextButton(onClick = { vm.installPage = "solutions" }) { Text("返回安装方案") }
+        TextButton(onClick = { vm.installPage = "tutorials" }) { Text("返回教程") }
         if (tool == null) {
             Text("没有这个教程", style = MaterialTheme.typography.titleLarge)
             return@Column
