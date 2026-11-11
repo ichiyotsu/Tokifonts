@@ -1,0 +1,14 @@
+tokifonts 0.1.0
+
+界面只附带下面两套字体，字库里的其他字体在使用时从原仓库下载。
+
+Google Sans Regular / Medium / Bold
+Copyright 2025 The Google Sans Project Authors (github.com/googlefonts/googlesans)
+Licensed under the SIL Open Font License, Version 1.1. See OFL-1.1.txt.
+
+Material Symbols Rounded
+Copyright Google LLC
+Licensed under the Apache License, Version 2.0. See APACHE-2.0.txt.
+
+字库索引合并自 https://github.com/ichiyotsu/Tokifonts 与 https://github.com/ichiyotsu/TokiFontsResource。
+每套字体仍使用该字体自己的许可，应用不改这些许可。
