@@ -1,122 +1,130 @@
-<img width="2000" height="647" alt="1" src="https://github.com/user-attachments/assets/52d95c63-cbce-4aa9-95d3-bd29c1da4919" />
-<br><br>
+# Tokifonts
 
-# 公告栏
-## 仓库近期更新
+Tokifonts 把字体文件收在 `Fonts/`，第一层目录是 `CO`、`BRD`、`CITY`。`Fonts/BRD/Readme.md` 的标题是 Brand-themed 品牌主题，`Fonts/CITY/Shanghai/Readme.md` 的标题是 City-themed 城市主题。文件主要是 `.ttf` 和 `.otf`，思源黑体可变字体是一个 zip。下载后用系统的字体安装功能安装，仓库里没有安装脚本。
 
-1 优化页面部分模块展示。
+| 路径 | 字体 | 收录 | 字体版本 |
+| --- | --- | --- | --- |
+| `Fonts/CO/Samsung/One UI Sans` | SamsungOneUI | 6 个 `.ttf`：200、300、400、500、600、700 | 1.000 |
+| `Fonts/CO/Samsung/Samsung Sans` | Samsung Sans | 5 个 `.ttf`：Bold、Light、Medium、Regular、Thin | 1.102 |
+| `Fonts/CO/Samsung/Samsung Sharp Sans` | Samsung Sharp Sans | 3 个 `.otf`：Bold、Medium、Regular | 1.000 |
+| `Fonts/CO/Apple/PingFang SC` | 苹方 | 6 个 `.ttf`：Bold、ExtraLight、Heavy、Light、Medium、Regular | 10.11d9e1 |
+| `Fonts/CO/Apple/PingFang HK` | 苹方-港 | 6 个 `.ttf`：Light、Medium、Regular、Semibold、Thin、Ultralight | 4.100 |
+| `Fonts/CO/Apple/SF Pro Display` | SF Pro Display | 18 个 `.otf`。字重 Black、Bold、Heavy、Light、Medium、Regular、Semibold、Thin、Ultralight，各有正体和斜体 | 16.0d18e1 |
+| `Fonts/CO/Apple/SF Pro Rounded` | SF Pro Rounded | 9 个 `.otf`：Black、Bold、Heavy、Light、Medium、Regular、Semibold、Thin、Ultralight | 16.0d18e1 |
+| `Fonts/CO/Apple/NewYork Sans` | New York Small、Medium、Large、Extra Large | 24 个 `.ttf`。光学尺寸 Small、Medium、Large、Extra Large，字重 Black、Bold、Heavy、Medium、Regular、Semibold | 15.0d5e2m |
+| `Fonts/CO/Google/Google Sans` | Google Sans | 10 个 `.ttf`：Regular、Medium、SemiBold、Bold 及对应斜体。`3009`、`3010` 是可变字体 | 13.002 |
+| `Fonts/CO/Google/Google Sans` | Google Sans 17pt | 8 个 `.ttf`：Regular、Medium、SemiBold、Bold 及对应斜体 | 13.002 |
+| `Fonts/CO/Google/Source Han Sans` | Source Han Sans SC VF | 1 个 zip，内有可变字体 `SourceHanSansSC-VF.ttf` | 2.005 |
+| `Fonts/CO/Google/Source Han Serif` | 思源宋体 CN | 7 个 `.ttf`：ExtraLight、Light、Regular、Medium、SemiBold、Bold、Heavy | 1.00 |
+| `Fonts/CO/Microsoft` | 微软雅黑 | 2 个 `.ttf`：`4001 Microsoft Yahei.ttf`、`4002 Microsoft Yahei Bold.ttf` | 6.02 |
+| `Fonts/CO/Adobe` | Adobe 仿宋 Std | 1 个 `.otf`，样式 Regular | 5.010 |
+| `Fonts/BRD/Xiaomi` | MiSans | 10 个 `.ttf`：Thin、ExtraLight、Light、Normal、Regular、Medium、Demibold、Semibold、Bold、Heavy | 4.009 |
+| `Fonts/BRD/OPPO` | OPPO Sans 4.0 | 1 个可变 `.ttf`。name 表中的字重：Light、Regular、Medium、SemiBold、Bold，另有 Italic | 1.700 |
+| `Fonts/BRD/HUAWEI` | 鸿蒙黑体 | 1 个可变 `.ttf`。name 表中的字重：Thin、UltraLight、Light、Regular、Medium、SemiBold、Bold、Heavy、Black，另有 Italic | 2.040 |
+| `Fonts/BRD/Douyin` | 抖音美好体 | 1 个 `.otf`：Bold | 1.00 |
+| `Fonts/BRD/Porsche` | Porsche Next | 1 个 `.ttf`，样式 Regular | 2.002 |
+| `Fonts/CITY/Shanghai` | 上海摩登体 | 1 个 `.otf`，样式常规 | 1.000 |
 
-2 修复并完善了部分教程可能存在的问题。
+上表的版本来自字体文件 name 表里的 version 字符串，是字体自己的版本。苹方-港的完整字符串是 `Version 4.100;July 27, 2024;FontCreator 15.0.0.2963 64-bit`。思源宋体 CN 的完整字符串是 `Version 1.00 April 7, 2017, initial release`。Google Sans 的完整字符串是 `Version 13.002;[5e3df34c1]`。
 
-3 新增教程 `#2-3 RootMyS24` 相关内容。
+`Fonts/` 里共有 87 个 `.ttf`、33 个 `.otf`、1 个 `.zip`。
 
-4 对 Resource 库进行全面迁移。
+## 已发布版本
 
-<br><br>
+仓库还没有 tag，也没有 GitHub Release。发布页是 [github.com/ichiyotsu/Tokifonts/releases](https://github.com/ichiyotsu/Tokifonts/releases)。
 
-# I. 关于
-TokiFonts 是建立在三星 OneUI 8+ 系统字体更换教程的基础上的衍生作品，在这里会不定期存储一些字体，方便大家下载和使用。你也可以带着字体加入我们，扩展资源库。
+## 版本规则
 
-TokiFonts 区分 Pro 和 CE 版本。
+`X.Y.Z`（如 `0.1.0`）是正式版。`X.Y.Z-bN`（如 `0.1.1-b1`）是测试版。
 
-`Pro` 主要以收录开源字体为主，且附带更新了字体安装教程。如有问题可随时通过 Issues 等方式进行提议。
+发布顺序是 `0.1.0` → `0.1.1-b1` → `0.1.1-b2` → … → `0.1.1`。测试版比已经发布的正式版超前几个号，是正常情况。
 
-`CE` 主要以社区投稿的方式存在。社区投稿的内容不定期审核整理，部分内容可能会受到 Pro 的二次收录。
-> 目前社区版暂未发布。待发布时会同步更新发布规范，不符合的内容可能会被移除。
+tag 使用 `v` 前缀，例如 `v0.1.0`、`v0.1.1-b1`。带 `-b` 的 tag 发布为 prerelease。
 
-<br><br>
+仓库里没有 `.github/workflows`。
 
-# II. 教程
-° 如果你不想 root 只想换字体，请参考教程 2-1 或 2-2 。
+## 获取和使用
 
-> 该方式可能在部分页面如微信（个人 > 朋友圈）中不生效。
-> 
-> 自 2026.10.3 起，三星启动了针对 SamFonts/ZFont 等字体软件所使用的 Knox Enterprise License Key（企业许可证密钥）的彻底封杀，受影响的用户在尝试激活或更换字体时会直接报错并提示 Error 204。因此如果你在之前进行了卸载 Knox 权限，也就没法再次使用这个教程啦。
+仓库地址是 [github.com/ichiyotsu/Tokifonts](https://github.com/ichiyotsu/Tokifonts)。默认分支是 `Pro`。
 
-° 如果你希望获得 root 权限，请根据你的设备型号参考 2-3 或 2-4 。
-> root有风险，请自行决定。部分设备需要在重启后字体才会生效。
+```bash
+git clone --depth 1 --branch Pro https://github.com/ichiyotsu/Tokifonts.git
+```
 
-° 如果你要完全 root，这里暂时不提供教程。
-> 完全 root 会导致 knox 物理熔断，三星钱包，安全文件夹等功能无法使用。且银行类App可能无法进入，不建议在主力设备上进行这类实验。
+2026-11-11 的 `Pro`：`.git` 压缩包约 331 MB，检出的 `Fonts/` 约 529 MB。
 
-**° 这里的每个教程下方都附带了相关软件的多种下载链接，找到你需要的就可以啦。**
+也可以在网页上按文件下载。`Fonts/CO/Google/Source Han Sans/3019 SourceHanSansSC-VF.zip` 是 20,313,312 字节，解开后是 `SourceHanSansSC-VF.ttf`（36,035,552 字节，Version 2.005，可变字体）。同目录的 `Readme.md` 写明 Windows 11 文件管理器可以解压这个包。
 
-<!--° 当你在仓库页访问教程时，建议使用 PC 端。
-如果是手机端的话我建议前往小红书 RedNote 或酷安 CoolAPK 查看适配屏幕的图文版本。
+`.ttf` 和 `.otf` 用系统的字体安装功能安装。仓库里没有安装脚本。
 
-[![](https://img.shields.io/badge/RedNote-@ichiyotsu-grey?logo=rednote&labelColor=ff2442)](https://xhslink.cn/o/Ac1MAlSBJov)
-[![](https://img.shields.io/badge/CoolAPK-@ichiyotsu-grey?logo=coolapk&labelColor=00A060)](https://www.coolapk.com/u/35156534)-->
+可变字体文件是 `Fonts/CO/Google/Google Sans/3009 GoogleSansVariable.ttf`、`Fonts/CO/Google/Google Sans/3010 GoogleSansItalicVariable.ttf`、`Fonts/BRD/OPPO/4013 OPPO Sans 4.0.ttf`、`Fonts/BRD/HUAWEI/4014 HarmonyOS_Sans_SC.ttf`，以及 zip 里的 `SourceHanSansSC-VF.ttf`。
 
-## 2-1 教程 - 使用 SamFonts 安装字体
-[![](https://img.shields.io/badge/SamFonts-4.3.4-white)](https://t.co/pdnJwWv095)
-[![](https://img.shields.io/badge/SamFonts-4.3.4_Pro-white)](https://t.co/x1tG3vVH71)
-[![](https://img.shields.io/badge/Gitlab-查看仓库-white?logo=gitlab)](https://gitlab.com/Fahadalijaved/samfonts)
-> 通过 Knox 漏洞请使用 4.3.4 版本。通过 Root 的请使用 4.3.4 Pro 版本。仓库可供后续新版下载备用。
-<!--[下载 4.0](https://github.com/fahadalijaved/SamFonts/releases/download/v4.0/app-arm64-v8a-release.apk)丨[查看仓库](https://github.com/fahadalijaved/SamFonts)-->
+## 目录结构
 
-<img width="2000" height="647" alt="1" src="https://github.com/user-attachments/assets/900919c2-6474-47b2-9a23-3fca7bd58ab2" />
-<img width="2000" height="647" alt="2" src="https://github.com/user-attachments/assets/fcc0a775-e6b0-4e1c-a0e7-e2a9b3a81c50" />
-<img width="2000" height="647" alt="3" src="https://github.com/user-attachments/assets/dea21a75-1257-4cdb-bbfb-12b322d2323b" />
-<img width="2000" height="647" alt="4" src="https://github.com/user-attachments/assets/7b52ab6a-4a7b-4ecd-8dc6-9e0463d3fb67" />
-<img width="2000" height="647" alt="5" src="https://github.com/user-attachments/assets/94da519f-9ba6-43ed-a03e-c2b0bf0e60de" />
-<img width="2000" height="647" alt="6" src="https://github.com/user-attachments/assets/3369db0c-d817-4639-9f02-bf93955bfccd" />
-<img width="2000" height="647" alt="7" src="https://github.com/user-attachments/assets/447a10aa-e9a6-4680-b065-4f773927ee2e" />
+```
+Fonts/
+├── CO/
+│   ├── Adobe/
+│   ├── Apple/
+│   │   ├── NewYork Sans/
+│   │   ├── PingFang HK/
+│   │   ├── PingFang SC/
+│   │   ├── SF Pro Display/
+│   │   └── SF Pro Rounded/
+│   ├── Google/
+│   │   ├── Google Sans/
+│   │   ├── Source Han Sans/
+│   │   └── Source Han Serif/
+│   ├── Microsoft/
+│   └── Samsung/
+│       ├── One UI Sans/
+│       ├── Samsung Sans/
+│       └── Samsung Sharp Sans/
+├── BRD/
+│   ├── Douyin/
+│   ├── HUAWEI/
+│   ├── OPPO/
+│   ├── Porsche/
+│   └── Xiaomi/
+└── CITY/
+    └── Shanghai/
+```
 
-## 2-2 教程 - 使用 ZFont 安装字体
-[![](https://img.shields.io/badge/ZFont-3.9.2.5-white)](https://github.com/zFont/Host/releases/download/zFont/zfont_v3.9.2.5-sideload-release.apk)
-[![](https://img.shields.io/badge/ZFont-3.9.2.3-white?logo=googleplay)](https://play.google.com/store/apps/details?id=com.htetznaing.zfont2)
-[![](https://img.shields.io/badge/Website-查看官网-white)](https://zfont.github.io/)
-> 三星用户请选择 3.9.2.5 版本。主流安卓用户可视网络情况随意选择。官网可供后续新版下载备用。
+`CO` 下是 Adobe、Apple、Google、Microsoft、Samsung。字体文件名以四位编号开头，例如 `1001`、`2001`、`3001`、`4001`、`5001`。
 
-<img width="2000" height="647" alt="2" src="https://github.com/user-attachments/assets/1163f400-5506-4ea9-a381-b33531dcf8d6" />
-<img width="2000" height="647" alt="9" src="https://github.com/user-attachments/assets/b20de153-4ebc-4479-abd5-4c897fff6e38" />
-<img width="2000" height="647" alt="10" src="https://github.com/user-attachments/assets/9a8977de-b98e-49ae-87d6-e214582601a9" />
-<img width="2000" height="647" alt="8" src="https://github.com/user-attachments/assets/b839a6d1-9c92-4ede-bfca-0c9bc3df6c6c" />
-<img width="2000" height="647" alt="9" src="https://github.com/user-attachments/assets/b31098ed-2184-445d-a91a-caff0a08e1a7" />
-<img width="2000" height="647" alt="10" src="https://github.com/user-attachments/assets/f80076c6-169b-4413-a86e-00bc62e3ef9d" />
-<img width="2000" height="647" alt="11" src="https://github.com/user-attachments/assets/f54ec96e-9e47-4547-8306-2a9dc023b71d" />
+有正文的说明：
 
-## 2-3 教程 - 使用 RootMyS24 获取临时 Root 权限
-[![](https://img.shields.io/badge/RootMyS24-5.3.1-white)](https://github.com/NanoTurtle1145/root-my-s24/releases/download/v3.5.1/RootMyS24-v3.5.1-release.apk)
-[![](https://img.shields.io/badge/KernelSU-3.3.0-white)](https://github.com/tiann/KernelSU/releases/download/v3.3.0/KernelSU_v3.3.0_32601-release.apk)
-[![](https://img.shields.io/badge/KernelSU-3.2.5-white)](https://github.com/tiann/KernelSU/releases/download/v3.2.5/KernelSU_v3.2.5_32525-release.apk)
-[![](https://img.shields.io/badge/Shikuzu-13.6.0-white)](https://github.com/RikkaApps/Shizuku/releases/download/v13.6.0/shizuku-v13.6.0.r1086.2650830c-release.apk)
-[![](https://img.shields.io/badge/Shikuzu-Google_Play-white?logo=googleplay)]([https://github.com/RikkaApps/Shizuku/releases/download/v13.6.0/shizuku-v13.6.0.r1086.2650830c-release.apk](https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api))
-> KernelSU 请视情况选择版本。Shikuzu 可视网络情况选择下载方式。
+- `Fonts/BRD/Readme.md`
+- `Fonts/CITY/Shanghai/Readme.md`
+- `Fonts/CO/Adobe/Readme.md`
+- `Fonts/CO/Apple/Readme.md`
+- `Fonts/CO/Google/Readme.md`
+- `Fonts/CO/Google/Source Han Sans/Readme.md`
+- `Fonts/CO/Microsoft/Readme.md`
 
-<img width="2000" height="647" alt="15" src="https://github.com/user-attachments/assets/373bcaf2-0c46-48be-90e6-aa1e157af112" />
-<img width="2000" height="647" alt="16" src="https://github.com/user-attachments/assets/afafd2d6-e4d0-4556-bc5f-7b451dee1ab2" />
-<img width="2000" height="647" alt="17" src="https://github.com/user-attachments/assets/f5a827ea-982c-42c9-84c7-b247429a39ff" />
-<img width="2000" height="647" alt="18" src="https://github.com/user-attachments/assets/ae8fac9e-9b75-452b-86d8-752e12b2caba" />
-<img width="2000" height="647" alt="19" src="https://github.com/user-attachments/assets/b337814e-b6d4-4b45-8620-80a9fa38144c" />
-<img width="2000" height="647" alt="20" src="https://github.com/user-attachments/assets/f1d3becd-fd5f-4f3d-9047-188dfef15f3b" />
-<img width="2000" height="647" alt="21" src="https://github.com/user-attachments/assets/4de844b1-720b-438a-aabe-e95cb8fe2ffe" />
-<img width="2000" height="647" alt="22" src="https://github.com/user-attachments/assets/0e994dd4-6a2b-41da-b432-57efec25bad3" />
-<img width="2000" height="647" alt="23" src="https://github.com/user-attachments/assets/b76761b2-6dfd-4054-ac1f-f27f06b617bd" />
+`Fonts/readme.md` 和其余子目录里的 `Readme.md` 是空文件。英文入口是 `README-EN.md`，正文在本文件。
 
-## 2-4 教程 - 使用 Root-My-Galaxy 获取临时 Root 权限
-> 相关内容可能在 2026.10 进行重制。
-<img width="2000" height="647" alt="13" src="https://github.com/user-attachments/assets/66615717-39ff-4078-8bce-6985211a2304" />
+## 许可
 
-<br><br>
+仓库根目录没有许可证文件。每套字体使用该字体文件自带的许可。下表只记录字体 name 表里的版权、许可字段和许可网址。子目录 `Readme.md` 另有写法的，写在同一行。
 
-# III.指南
-> 相关内容可能在 2026.10 进行重制。
-<img width="2000" height="647" alt="14" src="https://github.com/user-attachments/assets/1c862e01-69f5-4f5d-af4f-acf0d2f43883" />
-<img width="2000" height="647" alt="15" src="https://github.com/user-attachments/assets/aef0f43f-5cb0-4e9c-ba6d-30c9e87aba7a" />
-<img width="2000" height="647" alt="16" src="https://github.com/user-attachments/assets/8c27a294-000b-428e-9294-fa8856452da2" />
-<img width="2000" height="647" alt="17" src="https://github.com/user-attachments/assets/5400f442-a176-4b69-944e-9a69eb825a90" />
-
-<br><br>
-
-# IV.字体
-> 字体文件预计在 2026.10.23 完成迁移。
-> 
-> 正在探索全新的字体形象展示方式。相关预览可能会在 2026.11 上线。
-
-<br><br>
-
-# V.其他
-<img width="2000" height="647" alt="11" src="https://github.com/user-attachments/assets/2389d2af-83af-4732-a356-9b54f28d42cb" />
-<img width="2000" height="647" alt="12" src="https://github.com/user-attachments/assets/ee40077d-1ecc-40d0-9e2a-d12a0cad65e4" />
-<img width="2000" height="647" alt="13" src="https://github.com/user-attachments/assets/9b1b3cc6-b8eb-4704-8060-23086b66d91a" />
+| 字体 | 自带许可 |
+| --- | --- |
+| Google Sans、Google Sans 17pt | SIL Open Font License, Version 1.1。许可网址 [openfontlicense.org](https://openfontlicense.org)。版权为 Copyright 2025 The Google Sans Project Authors (github.com/googlefonts/googlesans)。 |
+| Source Han Sans SC VF | SIL Open Font License, Version 1.1。许可网址 [scripts.sil.org/OFL](http://scripts.sil.org/OFL)。版权为 © 2014-2025 Adobe，Reserved Font Name 为 Source。 |
+| 思源宋体 CN | SIL Open Font License, Version 1.1。许可网址 [scripts.sil.org/OFL](http://scripts.sil.org/OFL)。版权为 Copyright © 2017 Adobe Systems Incorporated，Reserved Font Name 为 Source。 |
+| 微软雅黑 | 许可字段写明：按该字体所在产品的 EULA 使用，用于显示和打印；只能按字体里的嵌入限制嵌入内容，以及临时下载到打印机或其他输出设备来打印。许可网址 [microsoft.com/typography/fonts](http://www.microsoft.com/typography/fonts)。版权为 © 2009 Microsoft Corporation。 |
+| SF Pro Display、SF Pro Rounded | 许可字段为 Apple San Francisco Font 的许可协议。`2023 SF-Pro-Display-Regular.otf` 写明仅可用于为运行在 Apple iOS、iPadOS、macOS 或 tvOS 上的软件制作界面样稿，使用方为 Registered Apple Developer 或经 Apple 书面允许的人，并写明不得把字体嵌入软件程序。字段后半是符号使用限制。版权为 © 2015-2020 Apple Inc.。 |
+| New York Small、Medium、Large、Extra Large | 许可字段为 Apple New York Font 的许可协议。`2056 new-york-medium_regular.ttf` 写明仅可用于为运行在 Apple 操作系统上的软件制作界面样稿，使用方为注册 Apple Developer 或经 Apple 书面允许的人，并写明不得把字体嵌入软件程序。版权为 © 2017-2019 Apple Inc.。 |
+| 苹方 | 许可字段为 `Apple Inc internal use only. Do not distribute.` 版权为 Copyright © 2015 Apple Inc.。 |
+| 苹方-港 | 文件没有许可字段。版权为 Copyright © 2015 DynaComware。商标字段写明 PingFang is a trademark of Apple Inc.。 |
+| SamsungOneUI | 许可字段为 `All rights of this font software are reserved by Samsung Electronics Co.,LTD. Any unauthorized use or distribution is expressly prohibited.` 版权为 Copyright 2015 Samsung Electronics Co., Ltd.。 |
+| Samsung Sans | 文件没有许可字段。版权为 Copyright © 2013 Samsung Electronics Co., Ltd.。设计方字段为 Dalton Maag Ltd。 |
+| Samsung Sharp Sans | 文件没有单独的许可字段。版权字段写明它是 Sharp Sans 的定制版，Sharp Sans 的版权为 copyright (c) 2015 by Lucas Sharp。商标字段写明 Sharp Sans is a trademark of Lucas Sharp。 |
+| Porsche Next | 许可字段写明字体归 Dr. Ing. h.c. F. Porsche AG 所有，字体软件按 “AS IS” 提供，并写明联系 Dr. Ing. h.c. F. Porsche AG 的 Production and Marketing 获取使用许可和限制。许可网址是 [保时捷联系页](http://www.porsche.com/germany/dialog/n90/contactandinformations-locations/locations-porscheag/locationsporscheag-stuttgart/)。版权为 Copyright (c) 2017-2023 Dr. Ing. h.c. F. Porsche AG.。 |
+| 抖音美好体 | 许可字段指向 [foundertype.com 的授权说明页](http://www.foundertype.com/index.php/About/bookAuth/key/my_grfs.htm)。版权为北京北大方正电子有限公司。`Fonts/BRD/Readme.md` 写的是 SIL Open Font License 1.1。 |
+| MiSans | 文件没有许可字段。版权为 Copyright © 2020-2025 Beijing Xiaomi Mobile Software Co.,Ltd.。厂商网址 [hanyi.com.cn](https://www.hanyi.com.cn/)。`Fonts/BRD/Readme.md` 写了全社会免费商用。 |
+| OPPO Sans 4.0 | 文件没有许可字段。版权为 copyright © 2019-2024 by OPPO。`Fonts/BRD/Readme.md` 写了全社会免费商用。 |
+| 鸿蒙黑体 | 文件没有许可字段。版权为 Copyright 2021-2024 Huawei Device Co., Ltd.。厂商字段为 Huawei Device Co., Ltd & Hanyi Fonts。`Fonts/BRD/Readme.md` 写了面向全社会免费商用。 |
+| Adobe 仿宋 Std | 文件没有许可正文。许可网址 [adobe.com/type/legal.html](http://www.adobe.com/type/legal.html)。版权为 Copyright © 2006, 2008, 2009 Adobe Systems Incorporated。 |
+| 上海摩登体 | 文件没有许可字段。版权为 Copyright © Shanghai Hantang Culture Development Co., Ltd.。厂商网址 [mallikatype.com](https://mallikatype.com)。`Fonts/CITY/Shanghai/Readme.md` 写了向公众开源共享。 |
