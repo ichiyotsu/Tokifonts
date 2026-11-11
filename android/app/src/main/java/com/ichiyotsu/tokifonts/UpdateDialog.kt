@@ -25,7 +25,12 @@ fun UpdateDialog(vm: FontsViewModel) {
     val context = LocalContext.current
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         val file = vm.pendingUpdate
-        if (file != null && context.packageManager.canRequestPackageInstalls()) AppUpdate.install(context, file)
+        if (file != null && context.packageManager.canRequestPackageInstalls()) {
+            AppUpdate.install(context, file)
+        } else if (file != null) {
+            // 只有手里真有待安装文件、却没拿到授权时才提示；授权往返期间状态已变（file 为 null）时静默。
+            vm.flash("需要允许安装未知应用才能安装更新")
+        }
     }
     val offer = vm.updateOffer ?: return
     AlertDialog(
@@ -59,6 +64,14 @@ fun UpdateDialog(vm: FontsViewModel) {
                 Text(if (vm.pendingUpdate == null) "下载并安装" else "安装")
             }
         },
-        dismissButton = { TextButton(onClick = vm::dismissUpdate) { Text("以后再说") } },
+        dismissButton = {
+            if (vm.updateDownloading) {
+                // 下载中：次按钮是“取消下载”，只停下载、弹窗保持打开，之后可立刻重新点“下载并安装”。
+                // 下载中按返回键/点弹窗外走 onDismissRequest，那边同样会顺带停掉下载再关弹窗。
+                TextButton(onClick = vm::cancelUpdateDownload) { Text("取消下载") }
+            } else {
+                TextButton(onClick = vm::dismissUpdate) { Text("以后再说") }
+            }
+        },
     )
 }

@@ -18,9 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,19 +43,16 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
         Section(title = "外观") {
             Text("主题", style = MaterialTheme.typography.titleMedium)
             val options = listOf("跟随系统", "浅色", "深色")
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                options.forEachIndexed { index, label ->
-                    SegmentedButton(
-                        selected = vm.themeMode == index,
-                        onClick = { vm.persistTheme(index) },
-                        shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                    ) { Text(label) }
-                }
-            }
+            PillGroup(
+                options = options.mapIndexed { index, label -> index to label },
+                selected = vm.themeMode,
+                onSelect = { vm.persistTheme(it) },
+            )
             ListItem(
                 headlineContent = { Text("动态取色") },
                 supportingContent = { Text("用壁纸颜色生成界面配色") },
                 trailingContent = { Switch(checked = vm.dynamicColor, onCheckedChange = { vm.setDynamic(it) }) },
+                colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
         }
         Section(title = "预览文字") {
@@ -68,6 +62,8 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 onValueChange = vm::updatePreview,
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
+                // 与搜索框、详情预览框统一圆角 28dp（此前漏传 shape、走默认 8dp，全 App 不一致）。
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 label = { Text("全局预览文字") },
             )
@@ -78,13 +74,14 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 headlineContent = { Text("启动时检查更新") },
                 supportingContent = { Text("打开应用时查看 GitHub 上有没有新的正式版") },
                 trailingContent = { Switch(checked = vm.checkOnLaunch, onCheckedChange = vm::persistCheckOnLaunch) },
+                colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
             Button(onClick = { vm.checkUpdate(manual = true) }, enabled = !vm.updateChecking) { Text(if (vm.updateChecking) "正在检查" else "检查更新") }
         }
         Section(title = "存储") {
             Text("已下载 $downloaded 个字体文件，占用 ${vm.cacheBytes.toSizeLabel()}。", style = MaterialTheme.typography.bodyLarge)
             Text(
-                "文件在应用私有目录。清除后需要重新下载。界面附带的 Google Sans 三档字重只在第一次启动时放入，清除后不会自动回来。",
+                "文件在应用私有目录。清除后需要重新下载。界面附带的 Google Sans 三档字重会在下次启动时自动补回。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

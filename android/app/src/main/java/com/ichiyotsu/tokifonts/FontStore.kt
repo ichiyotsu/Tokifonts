@@ -34,7 +34,8 @@ class FontStore(private val context: Context) {
     fun part(face: FontFace): File = File(dir, "${face.id}.part")
 
     fun seedIfFirstLaunch() {
-        if (prefs.getBoolean(KEY_SEEDED, false)) return
+        // 缺哪个补哪个：按文件存在性判断，不再只认一次性的 KEY_SEEDED 标志。
+        // 这样“清除下载”后，下次启动会自动把内置的三档 Google Sans 补回来。
         val bundled = listOf(
             "3001" to R.font.google_sans_400,
             "3003" to R.font.google_sans_500,
@@ -69,12 +70,12 @@ class FontStore(private val context: Context) {
                 when (face.format) {
                     "zip" -> {
                         onProgress(-1f)
-                        extractZip(partial, dest)
+                        extractZip(partial, dest, face.innerName)
                         partial.delete()
                     }
                     "7z" -> {
                         onProgress(-1f)
-                        extract7z(partial, dest)
+                        extract7z(partial, dest, face.innerName)
                         partial.delete()
                     }
                     else -> {
@@ -120,11 +121,24 @@ class FontStore(private val context: Context) {
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("无法写入下载目录")
-        resolver.openOutputStream(uri)?.use { out -> source.inputStream().use { it.copyTo(out) } } ?: error("无法写入下载目录")
+        try {
+            resolver.openOutputStream(uri)?.use { out -> source.inputStream().use { it.copyTo(out) } } ?: error("无法写入下载目录")
+        } catch (error: Throwable) {
+            // 写失败要删掉刚插入的 IS_PENDING 条目，否则下载库里留下一条用户看不见的幽灵记录。
+            runCatching { resolver.delete(uri, null, null) }
+            throw error
+        }
         values.clear()
         values.put(MediaStore.Downloads.IS_PENDING, 0)
         resolver.update(uri, values, null, null)
         return face.exportName
+    }
+
+    /** 删掉没有任何进行中任务的 .part 残片：进程被杀时 finally/cancel 都跑不到，残片只能在刷新时顺手清。 */
+    fun cleanOrphanParts(activeIds: Set<String>) {
+        dir.listFiles().orEmpty()
+            .filter { it.isFile && it.name.endsWith(".part") && it.name.removeSuffix(".part") !in activeIds }
+            .forEach { it.delete() }
     }
 
     fun share(face: FontFace) = send(face, Intent.ACTION_SEND, "分享字体文件")
@@ -149,7 +163,7 @@ class FontStore(private val context: Context) {
     }
 
     private fun fetch(faceId: String, url: String, dest: File, onProgress: (Float) -> Unit) {
-        val request = Request.Builder().url(url).header("User-Agent", "tokifonts/0.1.0").build()
+        val request = Request.Builder().url(url).header("User-Agent", "tokifonts/${BuildConfig.VERSION_NAME}").build()
         val call = client.newCall(request)
         calls[faceId] = call
         try {
@@ -175,6 +189,9 @@ class FontStore(private val context: Context) {
                                 }
                             }
                         }
+                        // 服务端声明了长度时，读到的字节数必须对得上：弱网/代理截断后只靠
+                        // 12 字节文件头校验会把半截文件当成功装上，这里当场判失败好切 mirror。
+                        if (total > 0 && read != total) throw IOException("下载不完整（$read/$total）")
                     }
                 }
             }
@@ -186,36 +203,52 @@ class FontStore(private val context: Context) {
         }
     }
 
-    private fun extractZip(archive: File, dest: File) {
+    /**
+     * 解包时优先取 innerName 指定的那一个字体；innerName 为空时才取第一个字体文件，
+     * 找不到指定文件时报错，而不是悄悄装上压缩包里的“第一个”。
+     */
+    private fun extractZip(archive: File, dest: File, innerName: String) {
         ZipFile(archive).use { zip ->
+            val wanted = innerName.replace('\\', '/').substringAfterLast("/")
             val entry = zip.entries().asSequence().firstOrNull { item ->
-                val name = item.name.substringAfterLast("/").lowercase()
-                !item.isDirectory && (name.endsWith(".ttf") || name.endsWith(".otf"))
-            } ?: error("压缩包里没有字体")
+                // 条目名统一分隔符再剥路径；扩展名忽略大小写，FONT.TTF 这类包不能误报“没有字体”。
+                val name = item.name.replace('\\', '/').substringAfterLast("/")
+                !item.isDirectory && (name.endsWith(".ttf", ignoreCase = true) || name.endsWith(".otf", ignoreCase = true)) &&
+                    (wanted.isBlank() || name.equals(wanted, ignoreCase = true))
+            } ?: if (wanted.isBlank()) {
+                error("压缩包里没有字体")
+            } else {
+                error("压缩包里没有 $wanted")
+            }
             zip.getInputStream(entry).use { input -> dest.outputStream().use { input.copyTo(it) } }
         }
     }
 
-    private fun extract7z(archive: File, dest: File) {
+    private fun extract7z(archive: File, dest: File, innerName: String) {
         SevenZFile(archive).use { seven ->
+            val wanted = innerName.replace('\\', '/').substringAfterLast("/")
             var entry = seven.nextEntry
             while (entry != null) {
-                val name = entry.name.substringAfterLast("/").lowercase()
-                if (!entry.isDirectory && (name.endsWith(".ttf") || name.endsWith(".otf"))) {
-                    dest.outputStream().use { output ->
-                        val buffer = ByteArray(8192)
-                        while (true) {
-                            val n = seven.read(buffer)
-                            if (n < 0) break
-                            output.write(buffer, 0, n)
+                val name = entry.name.replace('\\', '/').substringAfterLast("/")
+                if (!entry.isDirectory && (name.endsWith(".ttf", ignoreCase = true) || name.endsWith(".otf", ignoreCase = true))) {
+                    if (wanted.isBlank() || name.equals(wanted, ignoreCase = true)) {
+                        dest.outputStream().use { output ->
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                val n = seven.read(buffer)
+                                if (n < 0) break
+                                output.write(buffer, 0, n)
+                            }
                         }
+                        return
                     }
-                    return
                 }
                 entry = seven.nextEntry
             }
+            // 7z 是流式读，命中目标前已跳过前面的条目：innerName 为空时上面已在第一个字体处返回；
+            // 到这里说明 innerName 指定了但包里没有。
+            if (wanted.isBlank()) error("压缩包里没有字体") else error("压缩包里没有 $wanted")
         }
-        error("压缩包里没有字体")
     }
 
     private fun mime(face: FontFace): String = if (face.usableExt() == "otf") "font/otf" else "font/ttf"
@@ -245,7 +278,21 @@ class FontStore(private val context: Context) {
     }
 }
 
-fun openLink(context: Context, url: String) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(intent)
+fun openLink(context: Context, url: String): Boolean {
+    // 设备上没有能打开链接的应用时，startActivity 会抛 ActivityNotFoundException：
+    // 返回 false 让调用方提示，而不是直接崩溃。
+    return runCatching {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        true
+    }.getOrDefault(false)
+}
+
+/** 当前是否连着 Wi-Fi：详情页自动下载预览只在 Wi-Fi 下触发，移动数据下不静默耗流量。 */
+fun isWifiConnected(context: Context): Boolean {
+    val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        ?: return false
+    val network = manager.activeNetwork ?: return false
+    val capabilities = manager.getNetworkCapabilities(network) ?: return false
+    return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
 }

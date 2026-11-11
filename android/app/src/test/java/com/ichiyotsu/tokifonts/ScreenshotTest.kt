@@ -24,7 +24,7 @@ class ScreenshotTest {
     @Test fun settings() = shot("settings", false, 2)
     @Test fun settingsDark() = shot("settings-dark", true, 2)
 
-    @Test fun solutions() {
+    @Test fun tutorialIndex() {
         val vm = ready(false)
         vm.installPage = "tutorials"
         show(vm, 1)
@@ -76,7 +76,8 @@ class ScreenshotTest {
     }
 
     private fun show(vm: FontsViewModel, tab: Int) {
-        rule.setContent { TokiTheme(dark = vm.themeMode == 2, dynamic = false) { TokiApp(vm, tab) } }
+        // dark 必须显式传给 TokiApp 且与主题用同一个值，否则毛玻璃 tint 的深浅会跟系统走、与主题脱节。
+        rule.setContent { TokiTheme(dark = vm.themeMode == 2, dynamic = false) { TokiApp(vm, tab, dark = vm.themeMode == 2) } }
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(800)
         rule.waitForIdle()

@@ -57,8 +57,8 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
                     Text(tool.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                     Text(tool.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { openLink(context, tool.downloadUrl) }) { Text(tool.downloadLabel) }
-                        OutlinedButton(onClick = { openLink(context, tool.officialUrl) }) { Text(tool.officialLabel) }
+                        OutlinedButton(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
+                        OutlinedButton(onClick = { if (!openLink(context, tool.officialUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.officialLabel) }
                     }
                 }
             }

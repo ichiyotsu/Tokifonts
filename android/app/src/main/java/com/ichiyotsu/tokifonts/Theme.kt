@@ -2,6 +2,7 @@ package com.ichiyotsu.tokifonts
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
@@ -41,21 +42,26 @@ private val GoogleSans = FontFamily(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun Typography.withFont(family: FontFamily): Typography {
     fun TextStyle.with() = copy(fontFamily = family)
+    // 字阶覆写照 Tokinote 的 Type.kt：大标题更紧凑有力，其余走 M3 默认。
     return Typography(
-        displayLarge = displayLarge.with(),
+        displayLarge = displayLarge.with().copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-1.5).sp),
         displayMedium = displayMedium.with(),
         displaySmall = displaySmall.with(),
-        headlineLarge = headlineLarge.with(),
-        headlineMedium = headlineMedium.with(),
+        headlineLarge = headlineLarge.with().copy(
+            fontWeight = FontWeight.SemiBold, fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.4).sp,
+        ),
+        headlineMedium = headlineMedium.with().copy(
+            fontWeight = FontWeight.SemiBold, fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.3).sp,
+        ),
         headlineSmall = headlineSmall.with(),
-        titleLarge = titleLarge.with(),
-        titleMedium = titleMedium.with(),
-        titleSmall = titleSmall.with(),
-        bodyLarge = bodyLarge.with(),
+        titleLarge = titleLarge.with().copy(fontWeight = FontWeight.Medium),
+        titleMedium = titleMedium.with().copy(fontWeight = FontWeight.SemiBold),
+        titleSmall = titleSmall.with().copy(fontWeight = FontWeight.SemiBold),
+        bodyLarge = bodyLarge.with().copy(lineHeight = 26.sp),
         bodyMedium = bodyMedium.with(),
         bodySmall = bodySmall.with(),
-        labelLarge = labelLarge.with(),
-        labelMedium = labelMedium.with(),
+        labelLarge = labelLarge.with().copy(fontWeight = FontWeight.SemiBold),
+        labelMedium = labelMedium.with().copy(fontWeight = FontWeight.SemiBold),
         labelSmall = labelSmall.with(),
         displayLargeEmphasized = displayLargeEmphasized.with(),
         displayMediumEmphasized = displayMediumEmphasized.with(),
@@ -75,44 +81,143 @@ private fun Typography.withFont(family: FontFamily): Typography {
     )
 }
 
+/** Tokinote 的圆角刻度：比 M3 默认更圆，共 8 档。 */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+val TokiShapes = androidx.compose.material3.Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(26.dp),
+    extraLarge = RoundedCornerShape(36.dp),
+    largeIncreased = RoundedCornerShape(32.dp),
+    extraLargeIncreased = RoundedCornerShape(44.dp),
+    extraExtraLarge = RoundedCornerShape(56.dp),
+)
+
+/** 字体卡片：四角不对称，避免通用圆角的“模板感”。 */
+val ExpressiveCardShape = RoundedCornerShape(
+    topStart = 34.dp,
+    topEnd = 22.dp,
+    bottomEnd = 34.dp,
+    bottomStart = 22.dp,
+)
+
+/** 分组胶囊：一端更圆、一端收紧，像一片被压过的叶子。 */
+val ExpressiveChipShape = RoundedCornerShape(
+    topStart = 20.dp,
+    topEnd = 20.dp,
+    bottomEnd = 20.dp,
+    bottomStart = 7.dp,
+)
+
+/**
+ * Tokinote 的 Matcha 配色（种子色橄榄绿，取自 Tomato/nsh07 的 M3 Expressive token）：
+ * 动态取色关掉时用这套；动态取色开着时仍走系统取色，和 Tokinote 一致。
+ */
 private val ExpressiveDark = darkColorScheme(
-    primary = Color(0xFFD0BCFF),
-    onPrimary = Color(0xFF381E72),
-    primaryContainer = Color(0xFF4F378B),
-    onPrimaryContainer = Color(0xFFEADDFF),
-    secondaryContainer = Color(0xFF4A4458),
-    onSecondaryContainer = Color(0xFFE8DEF8),
-    tertiaryContainer = Color(0xFF633B48),
-    onTertiaryContainer = Color(0xFFFFD8E4),
-    surface = Color(0xFF141218),
-    background = Color(0xFF141218),
-    onBackground = Color(0xFFF6F1FA),
-    onSurface = Color(0xFFF6F1FA),
-    onSurfaceVariant = Color(0xFFE0D7EA),
-    outline = Color(0xFFB4A9C4),
-    outlineVariant = Color(0xFF6E6578),
-    surfaceContainer = Color(0xFF211F26),
-    surfaceContainerHigh = Color(0xFF2B2930),
-    surfaceContainerHighest = Color(0xFF36343B),
-    surfaceContainerLow = Color(0xFF1D1B20),
+    primary = Color(0xFFB1D18A),
+    onPrimary = Color(0xFF1F3701),
+    primaryContainer = Color(0xFF354E16),
+    onPrimaryContainer = Color(0xFFCDEDA3),
+    secondary = Color(0xFFBFCBAD),
+    onSecondary = Color(0xFF2A331E),
+    secondaryContainer = Color(0xFF404A33),
+    onSecondaryContainer = Color(0xFFDCE7C8),
+    tertiary = Color(0xFFA0D0CB),
+    onTertiary = Color(0xFF003735),
+    tertiaryContainer = Color(0xFF1F4E4B),
+    onTertiaryContainer = Color(0xFFBCECE7),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    background = Color(0xFF12140E),
+    onBackground = Color(0xFFE2E3D8),
+    surface = Color(0xFF12140E),
+    onSurface = Color(0xFFE2E3D8),
+    surfaceVariant = Color(0xFF44483D),
+    onSurfaceVariant = Color(0xFFC5C8BA),
+    outline = Color(0xFF8F9285),
+    outlineVariant = Color(0xFF44483D),
+    scrim = Color(0xFF000000),
+    inverseSurface = Color(0xFFE2E3D8),
+    inverseOnSurface = Color(0xFF2F312A),
+    inversePrimary = Color(0xFF4C662B),
+    surfaceDim = Color(0xFF12140E),
+    surfaceBright = Color(0xFF383A32),
+    surfaceContainerLowest = Color(0xFF0C0F09),
+    surfaceContainerLow = Color(0xFF1A1C16),
+    surfaceContainer = Color(0xFF1E201A),
+    surfaceContainerHigh = Color(0xFF282B24),
+    surfaceContainerHighest = Color(0xFF33362E),
+    // 以下 13 个槽此前未赋值、走 M3 基线默认（种子紫/粉），与 Matcha 不搭：
+    // surfaceTint 按 M3 规则取 primary 本色；Fixed 一族深浅不翻转，两套用同一组
+    // Matcha 色调（容器取浅色 container 色、on 取深色 on 色、variant 取深色 container 色）。
+    surfaceTint = Color(0xFFB1D18A),
+    primaryFixed = Color(0xFFCDEDA3),
+    primaryFixedDim = Color(0xFFB1D18A),
+    onPrimaryFixed = Color(0xFF1F3701),
+    onPrimaryFixedVariant = Color(0xFF354E16),
+    secondaryFixed = Color(0xFFDCE7C8),
+    secondaryFixedDim = Color(0xFFBFCBAD),
+    onSecondaryFixed = Color(0xFF2A331E),
+    onSecondaryFixedVariant = Color(0xFF404A33),
+    tertiaryFixed = Color(0xFFBCECE7),
+    tertiaryFixedDim = Color(0xFFA0D0CB),
+    onTertiaryFixed = Color(0xFF003735),
+    onTertiaryFixedVariant = Color(0xFF1F4E4B),
 )
 
 private val ExpressiveLight = lightColorScheme(
-    primary = Color(0xFF6750A4),
-    primaryContainer = Color(0xFFEADDFF),
-    onPrimaryContainer = Color(0xFF21005D),
-    secondaryContainer = Color(0xFFE8DEF8),
-    tertiaryContainer = Color(0xFFFFD8E4),
-    onTertiaryContainer = Color(0xFF31111D),
-    surface = Color(0xFFFEF7FF),
-    background = Color(0xFFFFFBFE),
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    onSurfaceVariant = Color(0xFF49454F),
-    surfaceContainer = Color(0xFFF3EDF7),
-    surfaceContainerHigh = Color(0xFFECE6F0),
-    surfaceContainerHighest = Color(0xFFE6E0E9),
-    surfaceContainerLow = Color(0xFFF7F2FA),
+    primary = Color(0xFF4C662B),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFCDEDA3),
+    onPrimaryContainer = Color(0xFF354E16),
+    secondary = Color(0xFF586249),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFDCE7C8),
+    onSecondaryContainer = Color(0xFF404A33),
+    tertiary = Color(0xFF386663),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFBCECE7),
+    onTertiaryContainer = Color(0xFF1F4E4B),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF93000A),
+    background = Color(0xFFF9FAEF),
+    onBackground = Color(0xFF1A1C16),
+    surface = Color(0xFFF9FAEF),
+    onSurface = Color(0xFF1A1C16),
+    surfaceVariant = Color(0xFFE1E4D5),
+    onSurfaceVariant = Color(0xFF44483D),
+    outline = Color(0xFF75796C),
+    outlineVariant = Color(0xFFC5C8BA),
+    scrim = Color(0xFF000000),
+    inverseSurface = Color(0xFF2F312A),
+    inverseOnSurface = Color(0xFFF1F2E6),
+    inversePrimary = Color(0xFFB1D18A),
+    surfaceDim = Color(0xFFDADBD0),
+    surfaceBright = Color(0xFFF9FAEF),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF3F4E9),
+    surfaceContainer = Color(0xFFEEEFE3),
+    surfaceContainerHigh = Color(0xFFE8E9DE),
+    surfaceContainerHighest = Color(0xFFE2E3D8),
+    // 同深色：补齐 13 个槽，Fixed 一族与深色套共用同一组值（不随深浅翻转）。
+    surfaceTint = Color(0xFF4C662B),
+    primaryFixed = Color(0xFFCDEDA3),
+    primaryFixedDim = Color(0xFFB1D18A),
+    onPrimaryFixed = Color(0xFF1F3701),
+    onPrimaryFixedVariant = Color(0xFF354E16),
+    secondaryFixed = Color(0xFFDCE7C8),
+    secondaryFixedDim = Color(0xFFBFCBAD),
+    onSecondaryFixed = Color(0xFF2A331E),
+    onSecondaryFixedVariant = Color(0xFF404A33),
+    tertiaryFixed = Color(0xFFBCECE7),
+    tertiaryFixedDim = Color(0xFFA0D0CB),
+    onTertiaryFixed = Color(0xFF003735),
+    onTertiaryFixedVariant = Color(0xFF1F4E4B),
 )
 
 /** Material 3 Expressive：动态取色、表现力动效，界面字体用 Google Sans。 */
@@ -140,31 +245,68 @@ fun TokiTheme(dark: Boolean = isSystemInDarkTheme(), dynamic: Boolean = true, co
     }
     MaterialExpressiveTheme(
         colorScheme = scheme,
+        shapes = TokiShapes,
         motionScheme = MotionScheme.expressive(),
         typography = Typography().withFont(GoogleSans),
         content = content,
     )
 }
 
+// 对比度兜底用的替换色全部取 Matcha 自己的中性色，不再用带紫调的 M3 基线灰。
+private val ContrastOnDark = Color(0xFFE2E3D8) // 深底上的浅字（Matcha 深色 onSurface）
+private val ContrastOnLight = Color(0xFF1A1C16) // 浅底上的深字（Matcha 浅色 onSurface）
+private val ContrastVariantOnDark = Color(0xFFC5C8BA) // Matcha 深色 onSurfaceVariant
+private val ContrastVariantOnLight = Color(0xFF44483D) // Matcha 浅色 onSurfaceVariant
+
 private fun androidx.compose.material3.ColorScheme.ensureTextContrast(dark: Boolean): androidx.compose.material3.ColorScheme {
-    return if (dark) {
-        copy(
-            onSurface = if (onSurface.luminance() < 0.72f) Color(0xFFF6F1FA) else onSurface,
-            onSurfaceVariant = if (onSurfaceVariant.luminance() < 0.55f) Color(0xFFE0D7EA) else onSurfaceVariant,
-            onBackground = if (onBackground.luminance() < 0.72f) Color(0xFFF6F1FA) else onBackground,
-        )
+    // 动态取色可能给出对比不足的组合：所有成对的 on 色都按 WCAG 对比度 4.5:1 兜底，
+    // 包括 primary/secondary/tertiary/error 的本体与容器、inverse 一对；
+    // onSurface 除了绝对亮度阈值，还要对字体预览条的底色 surfaceContainerHighest 再验一遍。
+    val surfaceText = if (dark) {
+        if (onSurface.luminance() < 0.72f) ContrastOnDark else onSurface
     } else {
-        copy(
-            onSurface = if (onSurface.luminance() > 0.42f) Color(0xFF1C1B1F) else onSurface,
-            onSurfaceVariant = if (onSurfaceVariant.luminance() > 0.5f) Color(0xFF49454F) else onSurfaceVariant,
-            onBackground = if (onBackground.luminance() > 0.42f) Color(0xFF1C1B1F) else onBackground,
-        )
+        if (onSurface.luminance() > 0.42f) ContrastOnLight else onSurface
     }
+    return copy(
+        onSurface = contrasting(surfaceContainerHighest, surfaceText),
+        onSurfaceVariant = if (dark) {
+            if (onSurfaceVariant.luminance() < 0.55f) ContrastVariantOnDark else onSurfaceVariant
+        } else {
+            if (onSurfaceVariant.luminance() > 0.5f) ContrastVariantOnLight else onSurfaceVariant
+        },
+        onBackground = if (dark) {
+            if (onBackground.luminance() < 0.72f) ContrastOnDark else onBackground
+        } else {
+            if (onBackground.luminance() > 0.42f) ContrastOnLight else onBackground
+        },
+        onPrimary = contrasting(primary, onPrimary),
+        onSecondary = contrasting(secondary, onSecondary),
+        onTertiary = contrasting(tertiary, onTertiary),
+        onError = contrasting(error, onError),
+        onPrimaryContainer = contrasting(primaryContainer, onPrimaryContainer),
+        onSecondaryContainer = contrasting(secondaryContainer, onSecondaryContainer),
+        onTertiaryContainer = contrasting(tertiaryContainer, onTertiaryContainer),
+        onErrorContainer = contrasting(errorContainer, onErrorContainer),
+        inverseOnSurface = contrasting(inverseSurface, inverseOnSurface),
+    )
+}
+
+/** WCAG 对比度：相对亮度之比，4.5:1 是正文文字的达标线。亮度差与它不等价，不能混用。 */
+private fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance()
+    val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
 }
 
 internal fun contrasting(background: Color, foreground: Color): Color {
-    if (kotlin.math.abs(background.luminance() - foreground.luminance()) >= 0.45f) return foreground
-    return if (background.luminance() > 0.5f) Color(0xFF1C1B1F) else Color(0xFFF6F1FA)
+    if (contrastRatio(background, foreground) >= 4.5f) return foreground
+    // 换色时在深/浅两个候选里按对比度取大者，不按背景亮度一刀切：
+    // 中间亮度的背景上，任一固定候选都可能只有 1.x:1，取大者才真正达标。
+    return if (contrastRatio(background, ContrastOnLight) >= contrastRatio(background, ContrastOnDark)) {
+        ContrastOnLight
+    } else {
+        ContrastOnDark
+    }
 }
 
 @OptIn(ExperimentalTextApi::class)

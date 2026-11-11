@@ -8,7 +8,7 @@ import org.junit.Test
 class CatalogTest {
     @Test fun mergedLibraryKeepsBothRepos() {
         val catalog = Catalog.parse(File("src/main/assets/catalog.json").readText())
-        assertEquals("0.1.0", catalog.version)
+        assertEquals("0.1.0", catalog.dataVersion)
         assertEquals(listOf("co", "brd", "city", "community"), catalog.groups.map { it.id })
         assertEquals(26, catalog.families.size)
         val faces = catalog.families.flatMap { it.faces }

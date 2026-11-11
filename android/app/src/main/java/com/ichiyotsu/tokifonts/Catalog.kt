@@ -69,45 +69,80 @@ data class FontFamily(
 }
 
 data class Catalog(
-    val version: String,
+    /** 目录数据版本（不是应用版本；生成脚本里写死在 catalog.json 里）。 */
+    val dataVersion: String,
     val mergeNote: String,
     val groups: List<FontGroup>,
     val sections: List<FontSection>,
     val families: List<FontFamily>,
+    /** 解析时跳过的损坏条目数（坏 family / face 各计 1）。 */
+    val skipped: Int = 0,
 ) {
     fun family(id: String) = families.firstOrNull { it.id == id }
     fun face(id: String) = families.asSequence().flatMap { it.faces }.firstOrNull { it.id == id }
 
     companion object {
+        /**
+         * 容错解析：坏掉的 group / section / family / face 只跳过该条并计入 [Catalog.skipped]，
+         * 不再因为一条坏记录让整个字体库打不开。只有根 JSON 本身非法时才抛异常。
+         */
         fun parse(text: String): Catalog {
             val root = JSONObject(text)
-            val groups = root.getJSONArray("groups").let { arr ->
-                List(arr.length()) { i ->
-                    val o = arr.getJSONObject(i)
-                    FontGroup(o.getString("id"), o.getString("name"), o.getString("code"), o.getString("blurb"))
+            var skipped = 0
+            val onSkip = { skipped++ }
+            val groups = root.optJSONArray("groups")?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val item = runCatching {
+                            val o = arr.getJSONObject(i)
+                            FontGroup(o.getString("id"), o.getString("name"), o.getString("code"), o.getString("blurb"))
+                        }.getOrNull()
+                        if (item == null) onSkip() else add(item)
+                    }
                 }
-            }
-            val sections = root.getJSONArray("sections").let { arr ->
-                List(arr.length()) { i ->
-                    val o = arr.getJSONObject(i)
-                    FontSection(o.getString("id"), o.getString("name"), o.getString("group"))
+            } ?: emptyList()
+            val sections = root.optJSONArray("sections")?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val item = runCatching {
+                            val o = arr.getJSONObject(i)
+                            FontSection(o.getString("id"), o.getString("name"), o.getString("group"))
+                        }.getOrNull()
+                        if (item == null) onSkip() else add(item)
+                    }
                 }
-            }
-            val families = root.getJSONArray("families").let { arr ->
-                List(arr.length()) { i -> parseFamily(arr.getJSONObject(i)) }
-            }
+            } ?: emptyList()
+            val families = root.optJSONArray("families")?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val item = runCatching { parseFamily(arr.getJSONObject(i), onSkip) }.getOrNull()
+                        if (item == null) onSkip() else add(item)
+                    }
+                }
+            } ?: emptyList()
+            // 逐条容错不等于根级也吞：families 缺失或全坏时返回空库会让 UI 只剩一片空白、
+            // 且 catalog != null 把重试挡死。根级损坏必须抛错，走 loadError + 重试路径。
+            if (families.isEmpty()) throw org.json.JSONException("catalog 缺少 families 或全部损坏")
             return Catalog(
-                version = root.optString("version"),
+                dataVersion = root.optString("version"),
                 mergeNote = root.optString("mergeNote"),
                 groups = groups,
                 sections = sections,
                 families = families,
+                skipped = skipped,
             )
         }
 
-        private fun parseFamily(o: JSONObject): FontFamily {
-            val facesJson = o.getJSONArray("faces")
-            val faces = List(facesJson.length()) { i -> parseFace(facesJson.getJSONObject(i)) }
+        private fun parseFamily(o: JSONObject, onSkip: () -> Unit): FontFamily {
+            val facesJson = o.optJSONArray("faces")
+            val faces = facesJson?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val face = runCatching { parseFace(arr.getJSONObject(i)) }.getOrNull()
+                        if (face == null) onSkip() else add(face)
+                    }
+                }
+            } ?: emptyList()
             val tagsJson = o.optJSONArray("tags")
             val sourcesJson = o.optJSONArray("sources")
             return FontFamily(

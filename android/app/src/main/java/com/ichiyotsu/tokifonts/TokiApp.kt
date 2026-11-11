@@ -2,7 +2,12 @@ package com.ichiyotsu.tokifonts
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -39,11 +44,11 @@ private val Pages = listOf(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
+fun TokiApp(vm: FontsViewModel, startTab: Int = -1, dark: Boolean = isSystemInDarkTheme()) {
     LaunchedEffect(startTab) { if (startTab >= 0) vm.tab = startTab }
     val haze = remember { HazeState() }
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(vm.message) {
+    LaunchedEffect(vm.messageSeq) {
         val text = vm.message ?: return@LaunchedEffect
         snackbar.showSnackbar(text)
         vm.consumeMessage()
@@ -64,7 +69,8 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
         val padding = PaddingValues(
             start = if (wide) 112.dp else 0.dp,
             top = WindowInsets.statusBars.let { with(density) { it.getTop(density).toDp() } },
-            bottom = if (wide) 24.dp else nav + 96.dp,
+            // 底部留白按底栏实测高度算：导航栏 + 胶囊 72.dp + 悬空 8.dp + 16.dp 间隙。
+            bottom = if (wide) 24.dp else nav + BottomBarHeight + 24.dp,
         )
         val actionIcon = when (vm.tab) {
             0 -> "search"
@@ -83,8 +89,14 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
                     }
                     vm.catalog == null -> {
-                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Column(
+                            Modifier.fillMaxSize().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
                             Text(vm.loadError ?: "字库索引读取失败", color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = vm::retryLoad) { Text("重试") }
                         }
                     }
                     vm.tab == 0 && vm.openFamilyId != null -> FontDetail(vm, vm.openFamilyId!!, padding)
@@ -99,6 +111,8 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
                 vm.tab = index
                 vm.openFamilyId = null
                 vm.installPage = "fonts"
+                // 搜索框属于字体页：切走就关掉，否则返回键会关一个看不见的搜索框。
+                vm.searchOpen = false
             }
             val act = {
                 when (vm.tab) {
@@ -110,9 +124,9 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
             if (wide) {
                 ExpressiveNavRail(Pages, vm.tab, select, actionIcon, actionLabel, act, Modifier.align(Alignment.CenterStart))
             } else {
-                ExpressiveBottomBar(Pages, vm.tab, select, actionIcon, actionLabel, act, haze, Modifier.align(Alignment.BottomCenter))
+                ExpressiveBottomBar(Pages, vm.tab, select, actionIcon, actionLabel, act, haze, dark, Modifier.align(Alignment.BottomCenter))
             }
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = if (wide) 24.dp else nav + 88.dp))
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = if (wide) 24.dp else nav + BottomBarHeight + 16.dp))
             UpdateDialog(vm)
         }
     }
