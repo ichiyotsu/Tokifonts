@@ -1,0 +1,530 @@
+{
+  "Apple": [
+    {
+      "path": "NewYork Sans/new-york-extra-large_black.ttf",
+      "size": 327268
+    },
+    {
+      "path": "NewYork Sans/new-york-extra-large_bold.ttf",
+      "size": 332408
+    },
+    {
+      "path": "NewYork Sans/new-york-extra-large_heavy.ttf",
+      "size": 330356
+    },
+    {
+      "path": "NewYork Sans/new-york-extra-large_medium.ttf",
+      "size": 342228
+    },
+    {
+      "path": "NewYork Sans/new-york-extra-large_regular.ttf",
+      "size": 330628
+    },
+    {
+      "path": "NewYork Sans/new-york-extra-large_semibold.ttf",
+      "size": 330084
+    },
+    {
+      "path": "NewYork Sans/new-york-large_black.ttf",
+      "size": 342492
+    },
+    {
+      "path": "NewYork Sans/new-york-large_bold.ttf",
+      "size": 334568
+    },
+    {
+      "path": "NewYork Sans/new-york-large_heavy.ttf",
+      "size": 336728
+    },
+    {
+      "path": "NewYork Sans/new-york-large_medium.ttf",
+      "size": 337064
+    },
+    {
+      "path": "NewYork Sans/new-york-large_regular.ttf",
+      "size": 372816
+    },
+    {
+      "path": "NewYork Sans/new-york-large_semibold.ttf",
+      "size": 329428
+    },
+    {
+      "path": "NewYork Sans/new-york-medium_black.ttf",
+      "size": 340860
+    },
+    {
+      "path": "NewYork Sans/new-york-medium_bold.ttf",
+      "size": 343904
+    },
+    {
+      "path": "NewYork Sans/new-york-medium_heavy.ttf",
+      "size": 342044
+    },
+    {
+      "path": "NewYork Sans/new-york-medium_medium.ttf",
+      "size": 335212
+    },
+    {
+      "path": "NewYork Sans/new-york-medium_regular.ttf",
+      "size": 327236
+    },
+    {
+      "path": "NewYork Sans/new-york-medium_semibold.ttf",
+      "size": 340404
+    },
+    {
+      "path": "NewYork Sans/new-york-small_black.ttf",
+      "size": 368436
+    },
+    {
+      "path": "NewYork Sans/new-york-small_bold.ttf",
+      "size": 372024
+    },
+    {
+      "path": "NewYork Sans/new-york-small_heavy.ttf",
+      "size": 376392
+    },
+    {
+      "path": "NewYork Sans/new-york-small_medium.ttf",
+      "size": 332268
+    },
+    {
+      "path": "NewYork Sans/new-york-small_regular.ttf",
+      "size": 329712
+    },
+    {
+      "path": "NewYork Sans/new-york-small_semibold.ttf",
+      "size": 369480
+    },
+    {
+      "path": "PingFang Bold.ttf",
+      "size": 10923212
+    },
+    {
+      "path": "PingFang ExtraLight.ttf",
+      "size": 11035472
+    },
+    {
+      "path": "PingFang Heavy.ttf",
+      "size": 10898528
+    },
+    {
+      "path": "PingFang Light.ttf",
+      "size": 11024840
+    },
+    {
+      "path": "PingFang Medium.ttf",
+      "size": 10968356
+    },
+    {
+      "path": "PingFang Regular.ttf",
+      "size": 11004656
+    },
+    {
+      "path": "PingFangHK-Light.ttf",
+      "size": 12552136
+    },
+    {
+      "path": "PingFangHK-Medium.ttf",
+      "size": 12575228
+    },
+    {
+      "path": "PingFangHK-Regular.ttf",
+      "size": 12545048
+    },
+    {
+      "path": "PingFangHK-Semibold.ttf",
+      "size": 12590380
+    },
+    {
+      "path": "PingFangHK-Thin.ttf",
+      "size": 12550652
+    },
+    {
+      "path": "PingFangHK-Ultralight.ttf",
+      "size": 12577220
+    },
+    {
+      "path": "SF-Pro-Display-Black.otf",
+      "size": 2173496
+    },
+    {
+      "path": "SF-Pro-Display-BlackItalic.otf",
+      "size": 2074920
+    },
+    {
+      "path": "SF-Pro-Display-Bold.otf",
+      "size": 2298456
+    },
+    {
+      "path": "SF-Pro-Display-BoldItalic.otf",
+      "size": 2196100
+    },
+    {
+      "path": "SF-Pro-Display-Heavy.otf",
+      "size": 2311308
+    },
+    {
+      "path": "SF-Pro-Display-HeavyItalic.otf",
+      "size": 2208464
+    },
+    {
+      "path": "SF-Pro-Display-Light.otf",
+      "size": 2283060
+    },
+    {
+      "path": "SF-Pro-Display-LightItalic.otf",
+      "size": 2206648
+    },
+    {
+      "path": "SF-Pro-Display-Medium.otf",
+      "size": 2320104
+    },
+    {
+      "path": "SF-Pro-Display-MediumItalic.otf",
+      "size": 2221096
+    },
+    {
+      "path": "SF-Pro-Display-Regular.otf",
+      "size": 2230364
+    },
+    {
+      "path": "SF-Pro-Display-RegularItalic.otf",
+      "size": 2152140
+    },
+    {
+      "path": "SF-Pro-Display-Semibold.otf",
+      "size": 2325324
+    },
+    {
+      "path": "SF-Pro-Display-SemiboldItalic.otf",
+      "size": 2232436
+    },
+    {
+      "path": "SF-Pro-Display-Thin.otf",
+      "size": 2253252
+    },
+    {
+      "path": "SF-Pro-Display-ThinItalic.otf",
+      "size": 2175884
+    },
+    {
+      "path": "SF-Pro-Display-Ultralight.otf",
+      "size": 2264032
+    },
+    {
+      "path": "SF-Pro-Display-UltralightItalic.otf",
+      "size": 2188156
+    },
+    {
+      "path": "SF-Pro-Rounded-Black.otf",
+      "size": 2245284
+    },
+    {
+      "path": "SF-Pro-Rounded-Bold.otf",
+      "size": 2383476
+    },
+    {
+      "path": "SF-Pro-Rounded-Heavy.otf",
+      "size": 2400688
+    },
+    {
+      "path": "SF-Pro-Rounded-Light.otf",
+      "size": 2375724
+    },
+    {
+      "path": "SF-Pro-Rounded-Medium.otf",
+      "size": 2406796
+    },
+    {
+      "path": "SF-Pro-Rounded-Regular.otf",
+      "size": 2290984
+    },
+    {
+      "path": "SF-Pro-Rounded-Semibold.otf",
+      "size": 2410352
+    },
+    {
+      "path": "SF-Pro-Rounded-Thin.otf",
+      "size": 2346472
+    },
+    {
+      "path": "SF-Pro-Rounded-Ultralight.otf",
+      "size": 2360188
+    }
+  ],
+  "Cities": [
+    {
+      "path": "上海摩登体.otf",
+      "size": 1090444
+    }
+  ],
+  "Community-contributed": [
+    {
+      "path": "其他字体/Cubic_11.ttf",
+      "size": 2773732
+    },
+    {
+      "path": "其他字体/GenWanMin2TC-EL.otf",
+      "size": 22905648
+    },
+    {
+      "path": "其他字体/GenWanMin2TC-L.otf",
+      "size": 22846700
+    },
+    {
+      "path": "其他字体/GenWanMin2TC-M.otf",
+      "size": 22715524
+    },
+    {
+      "path": "其他字体/GenWanMin2TC-R.otf",
+      "size": 22778196
+    },
+    {
+      "path": "其他字体/GenWanMin2TC-SB.otf",
+      "size": 22619792
+    },
+    {
+      "path": "手写体/mianhuatangpinyin.ttf",
+      "size": 3972948
+    },
+    {
+      "path": "手写体/康熙字典体.7z",
+      "size": 25252507
+    }
+  ],
+  "Corporate": [
+    {
+      "path": "Adobe Fangsong Std.otf",
+      "size": 14526060
+    },
+    {
+      "path": "DouyinSansBold.otf",
+      "size": 2082964
+    },
+    {
+      "path": "HarmonyOS_Sans_SC.ttf",
+      "size": 20617156
+    },
+    {
+      "path": "MiSans/MiSans-Bold.ttf",
+      "size": 8009316
+    },
+    {
+      "path": "MiSans/MiSans-Demibold.ttf",
+      "size": 8066052
+    },
+    {
+      "path": "MiSans/MiSans-ExtraLight.ttf",
+      "size": 8283984
+    },
+    {
+      "path": "MiSans/MiSans-Heavy.ttf",
+      "size": 7980296
+    },
+    {
+      "path": "MiSans/MiSans-Light.ttf",
+      "size": 8235972
+    },
+    {
+      "path": "MiSans/MiSans-Medium.ttf",
+      "size": 8103840
+    },
+    {
+      "path": "MiSans/MiSans-Normal.ttf",
+      "size": 8201144
+    },
+    {
+      "path": "MiSans/MiSans-Regular.ttf",
+      "size": 8122324
+    },
+    {
+      "path": "MiSans/MiSans-Semibold.ttf",
+      "size": 8034980
+    },
+    {
+      "path": "MiSans/MiSans-Thin.ttf",
+      "size": 8316712
+    },
+    {
+      "path": "Microsoft Yahei Bold.ttf",
+      "size": 14602860
+    },
+    {
+      "path": "Microsoft Yahei.ttf",
+      "size": 21767952
+    },
+    {
+      "path": "OPPO Sans 4.0.ttf",
+      "size": 22741096
+    },
+    {
+      "path": "Porsche Next.ttf",
+      "size": 185508
+    }
+  ],
+  "Google": [
+    {
+      "path": "GoogleSans-Bold.ttf",
+      "size": 2001624
+    },
+    {
+      "path": "GoogleSans-BoldItalic.ttf",
+      "size": 2062592
+    },
+    {
+      "path": "GoogleSans-Italic.ttf",
+      "size": 2060680
+    },
+    {
+      "path": "GoogleSans-Medium.ttf",
+      "size": 2002260
+    },
+    {
+      "path": "GoogleSans-MediumItalic.ttf",
+      "size": 2063076
+    },
+    {
+      "path": "GoogleSans-Regular.ttf",
+      "size": 1999328
+    },
+    {
+      "path": "GoogleSans-SemiBold.ttf",
+      "size": 2002296
+    },
+    {
+      "path": "GoogleSans-SemiBoldItalic.ttf",
+      "size": 2063336
+    },
+    {
+      "path": "GoogleSansItalicVariable.ttf",
+      "size": 5081488
+    },
+    {
+      "path": "GoogleSansVariable.ttf",
+      "size": 4785696
+    },
+    {
+      "path": "GoogleSans_17pt-Bold.ttf",
+      "size": 2002080
+    },
+    {
+      "path": "GoogleSans_17pt-BoldItalic.ttf",
+      "size": 2063156
+    },
+    {
+      "path": "GoogleSans_17pt-Italic.ttf",
+      "size": 2061468
+    },
+    {
+      "path": "GoogleSans_17pt-Medium.ttf",
+      "size": 2002284
+    },
+    {
+      "path": "GoogleSans_17pt-MediumItalic.ttf",
+      "size": 2063916
+    },
+    {
+      "path": "GoogleSans_17pt-Regular.ttf",
+      "size": 1999368
+    },
+    {
+      "path": "GoogleSans_17pt-SemiBold.ttf",
+      "size": 2002556
+    },
+    {
+      "path": "GoogleSans_17pt-SemiBoldItalic.ttf",
+      "size": 2064036
+    },
+    {
+      "path": "SourceHanSansSC-VF.zip",
+      "size": 20313312
+    },
+    {
+      "path": "SourceHanSerifCN-Bold.ttf",
+      "size": 12865080
+    },
+    {
+      "path": "SourceHanSerifCN-ExtraLight.ttf",
+      "size": 13065564
+    },
+    {
+      "path": "SourceHanSerifCN-Heavy.ttf",
+      "size": 12794548
+    },
+    {
+      "path": "SourceHanSerifCN-Light.ttf",
+      "size": 13047776
+    },
+    {
+      "path": "SourceHanSerifCN-Medium.ttf",
+      "size": 13626252
+    },
+    {
+      "path": "SourceHanSerifCN-Regular.ttf",
+      "size": 13013172
+    },
+    {
+      "path": "SourceHanSerifCN-SemiBold.ttf",
+      "size": 12914448
+    }
+  ],
+  "Samsung": [
+    {
+      "path": "SamsungOneUI-200.ttf",
+      "size": 688508
+    },
+    {
+      "path": "SamsungOneUI-300.ttf",
+      "size": 678396
+    },
+    {
+      "path": "SamsungOneUI-400.ttf",
+      "size": 1589428
+    },
+    {
+      "path": "SamsungOneUI-500.ttf",
+      "size": 1598516
+    },
+    {
+      "path": "SamsungOneUI-600.ttf",
+      "size": 1588276
+    },
+    {
+      "path": "SamsungOneUI-700.ttf",
+      "size": 678232
+    },
+    {
+      "path": "SamsungSans-Bold.ttf",
+      "size": 255780
+    },
+    {
+      "path": "SamsungSans-Light.ttf",
+      "size": 1410236
+    },
+    {
+      "path": "SamsungSans-Medium.ttf",
+      "size": 247956
+    },
+    {
+      "path": "SamsungSans-Regular.ttf",
+      "size": 238388
+    },
+    {
+      "path": "SamsungSans-Thin.ttf",
+      "size": 736272
+    },
+    {
+      "path": "SamsungSharpSans-Bold.otf",
+      "size": 148384
+    },
+    {
+      "path": "SamsungSharpSans-Medium.otf",
+      "size": 146236
+    },
+    {
+      "path": "SamsungSharpSans-Regular.otf",
+      "size": 145216
+    }
+  ]
+}
