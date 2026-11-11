@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +56,15 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
     var sectionId by mutableStateOf("all")
     var tab by mutableIntStateOf(0)
     var openFamilyId by mutableStateOf<String?>(null)
+    var installPage by mutableStateOf("fonts")
+    var checkOnLaunch by mutableStateOf(true)
+    var updateOffer by mutableStateOf<UpdateOffer?>(null)
+    var updateChecking by mutableStateOf(false)
+    var updateDownloading by mutableStateOf(false)
+    var updateProgress by mutableFloatStateOf(0f)
+    var pendingUpdate by mutableStateOf<File?>(null)
+        private set
+    private var updateDismissed = false
     var message by mutableStateOf<String?>(null)
     var cacheBytes by mutableLongStateOf(0L)
         private set
@@ -65,6 +75,7 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         themeMode = prefs.getInt(KEY_THEME, 0)
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true)
         previewText = prefs.getString(KEY_PREVIEW, DEFAULT_PREVIEW) ?: DEFAULT_PREVIEW
+        checkOnLaunch = prefs.getBoolean(KEY_UPDATE_LAUNCH, true)
         exported = prefs.getStringSet(KEY_EXPORTED, emptySet()).orEmpty().toSet()
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -123,7 +134,61 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resetPreview() {
         updatePreview(DEFAULT_PREVIEW)
-        flash("已恢复默认预览文字")
+    }
+
+    fun persistCheckOnLaunch(enabled: Boolean) {
+        checkOnLaunch = enabled
+        prefs.edit().putBoolean(KEY_UPDATE_LAUNCH, enabled).apply()
+    }
+
+    fun checkUpdate(manual: Boolean) {
+        if (updateChecking || updateDownloading) return
+        if (!manual && updateDismissed) return
+        if (manual) updateDismissed = false
+        updateChecking = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val offer = AppUpdate.latest(BuildConfig.VERSION_NAME)
+                onMain {
+                    updateChecking = false
+                    pendingUpdate = null
+                    if (offer == null) {
+                        updateOffer = null
+                        if (manual) flash("已是最新版本")
+                    } else {
+                        updateOffer = offer
+                    }
+                }
+            } catch (error: Throwable) {
+                onMain {
+                    updateChecking = false
+                    if (manual) flash(error.message ?: "检查更新失败")
+                }
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        updateDismissed = true
+        updateOffer = null
+    }
+
+    fun downloadUpdate() {
+        val offer = updateOffer ?: return
+        if (updateDownloading) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                onMain { updateDownloading = true; updateProgress = 0f }
+                val file = File(getApplication<Application>().cacheDir, "updates/${offer.assetName}")
+                AppUpdate.download(offer, file) { progress -> onMain { updateProgress = progress } }
+                onMain { pendingUpdate = file; updateDownloading = false }
+            } catch (error: Throwable) {
+                onMain {
+                    updateDownloading = false
+                    flash(error.message ?: "下载更新失败")
+                }
+            }
+        }
     }
 
     fun refreshLocal() {
@@ -260,5 +325,6 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         private const val KEY_DYNAMIC = "dynamic"
         private const val KEY_PREVIEW = "preview"
         private const val KEY_EXPORTED = "exported"
+        private const val KEY_UPDATE_LAUNCH = "update_on_launch"
     }
 }
