@@ -3,6 +3,7 @@ package com.ichiyotsu.tokifonts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -142,4 +143,3 @@ fun PaddingValues.asPagePadding(horizontal: Dp = 20.dp, vertical: Dp = 12.dp): P
         bottom = calculateBottomPadding() + vertical,
     )
 }
-
