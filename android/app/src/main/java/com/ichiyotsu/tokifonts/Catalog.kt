@@ -97,7 +97,7 @@ data class Catalog(
         fun parse(text: String): Catalog {
             val root = JSONObject(text)
             var skipped = 0
-            val onSkip = { skipped++ }
+            val onSkip: () -> Unit = { skipped++ }
             val groups = root.optJSONArray("groups")?.let { arr ->
                 buildList {
                     for (i in 0 until arr.length()) {
