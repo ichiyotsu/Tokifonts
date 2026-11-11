@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -36,8 +37,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,7 +59,7 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = padding.asPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
             Text("Tokifonts", style = MaterialTheme.typography.displaySmallEmphasized)
@@ -81,23 +84,24 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    FilterChip(selected = vm.groupId == "all", onClick = { vm.setGroup("all") }, label = { Text("全部") })
+                    FilterChip(selected = vm.groupId == "all", onClick = { vm.setGroup("all") }, label = { Text("全部") }, shape = ExpressiveChipShape)
                 }
                 items(catalog.groups, key = { it.id }) { group ->
-                    FilterChip(selected = vm.groupId == group.id, onClick = { vm.setGroup(group.id) }, label = { Text(group.name) })
+                    FilterChip(selected = vm.groupId == group.id, onClick = { vm.setGroup(group.id) }, label = { Text(group.name) }, shape = ExpressiveChipShape)
                 }
             }
         }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    FilterChip(selected = vm.sectionId == "all", onClick = { vm.sectionId = "all" }, label = { Text("全部分组") })
+                    FilterChip(selected = vm.sectionId == "all", onClick = { vm.sectionId = "all" }, label = { Text("全部分组") }, shape = ExpressiveChipShape)
                 }
                 items(sections, key = { it.id }) { section ->
                     FilterChip(
                         selected = vm.sectionId == section.id,
                         onClick = { vm.sectionId = section.id },
                         label = { Text(section.name) },
+                        shape = ExpressiveChipShape,
                     )
                 }
             }
@@ -128,7 +132,7 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
     }
     Surface(
         onClick = { vm.openFamilyId = family.id },
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = ExpressiveCardShape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -138,7 +142,15 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Text(family.name, style = MaterialTheme.typography.titleLarge)
+            Text(
+                family.name,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 25.sp,
+                    lineHeight = 29.sp,
+                    letterSpacing = (-0.4).sp,
+                ),
+            )
             Text(
                 listOf(family.nameEn, if (family.faces.isEmpty()) family.status.ifBlank { "暂无文件" } else "${family.faces.size} 个文件")
                     .filter { it.isNotBlank() }
@@ -170,9 +182,11 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
 
 @Composable
 fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
+    val context = LocalContext.current
     val catalog = vm.catalog ?: return
     val family = catalog.family(familyId) ?: return
     var selectedId by remember(family.id) { mutableStateOf(family.initialFace()?.id) }
+    var confirmAll by remember(family.id) { mutableStateOf(false) }
     val selected = family.faces.firstOrNull { it.id == selectedId } ?: family.initialFace()
     var previewSize by remember(family.id) { mutableIntStateOf(32) }
     var axis by remember(selected?.id) { mutableFloatStateOf((selected?.weight ?: 400).toFloat()) }
@@ -186,7 +200,8 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
     }
     LaunchedEffect(selected?.id) {
         val face = selected ?: return@LaunchedEffect
-        if (face.bytes in 1..AUTO_PREVIEW_BYTES && vm.status(face.id) is FaceStatus.Absent) vm.download(face)
+        // 自动下载只在 Wi-Fi 下触发：移动数据下不静默耗流量，用户点“下载预览”再下。
+        if (face.bytes in 1..AUTO_PREVIEW_BYTES && vm.status(face.id) is FaceStatus.Absent && isWifiConnected(context)) vm.download(face)
     }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding(vertical = 8.dp)),
@@ -223,6 +238,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                                 }?.id ?: family.faces.first { it.optical == optical }.id
                             },
                             label = { Text(label.ifBlank { optical }) },
+                            shape = ExpressiveChipShape,
                         )
                     }
                 }
@@ -240,6 +256,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                             } ?: pool.first { it.variable == chip.variable && it.weight == chip.weight }).id
                         },
                         label = { Text(if (chip.variable) "可变" else chip.weightLabel) },
+                        shape = ExpressiveChipShape,
                     )
                 }
                 if (pool.any { it.italic }) {
@@ -255,14 +272,26 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                         },
                         enabled = twin,
                         label = { Text("斜体") },
+                        shape = ExpressiveChipShape,
                     )
                 }
             }
             Text(selected.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             DownloadBlock(vm, selected, state)
             if (family.faces.size > 1) {
-                OutlinedButton(onClick = { vm.downloadAll(family) }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { confirmAll = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("下载全部 ${family.faces.size} 个文件")
+                }
+                if (confirmAll) {
+                    AlertDialog(
+                        onDismissRequest = { confirmAll = false },
+                        title = { Text("下载全部") },
+                        text = { Text("一次下载 ${family.faces.size} 个文件，共 ${family.faces.sumOf { it.bytes }.toSizeLabel()}。") },
+                        confirmButton = {
+                            TextButton(onClick = { confirmAll = false; vm.downloadAll(family) }) { Text("下载") }
+                        },
+                        dismissButton = { TextButton(onClick = { confirmAll = false }) { Text("取消") } },
+                    )
                 }
             }
         }

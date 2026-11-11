@@ -3,20 +3,17 @@ package com.ichiyotsu.tokifonts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 internal data class InstallerTool(
@@ -165,37 +162,6 @@ fun InstallTutorialIndex(vm: FontsViewModel, padding: PaddingValues) {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(tool.name, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-    }
-}
-
-@Composable
-fun InstallSolutions(vm: FontsViewModel, padding: PaddingValues) {
-    val context = LocalContext.current
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        TextButton(onClick = { vm.installPage = "fonts" }) { Text("返回安装") }
-        Text("安装方案", style = MaterialTheme.typography.displaySmallEmphasized)
-        Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-        Text(
-            "这些应用不是 tokifonts 的一部分。下面每个都给出下载页和官方页面。教程只写公开说明里的使用顺序，不写利用细节。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        InstallerTools.forEach { tool ->
-            Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(tool.name, style = MaterialTheme.typography.titleLarge)
-                    Text(tool.summary, style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { openLink(context, tool.downloadUrl) }) { Text(tool.downloadLabel) }
-                        OutlinedButton(onClick = { openLink(context, tool.officialUrl) }) { Text(tool.officialLabel) }
-                    }
-                    TextButton(onClick = { vm.installPage = "tutorial:${tool.id}" }) { Text("教程") }
-                }
             }
         }
     }

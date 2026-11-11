@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
             }
             TokiTheme(dark = dark, dynamic = vm.dynamicColor) {
                 LaunchedEffect(Unit) { if (vm.checkOnLaunch) vm.checkUpdate(manual = false) }
-                TokiApp(vm)
+                TokiApp(vm, dark = dark)
             }
         }
     }

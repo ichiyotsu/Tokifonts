@@ -29,7 +29,12 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
-            all { it.systemProperty("roborazzi.record", "true") }
+            // 截图测试默认比对 golden 图，不再每次都重录：
+            // 需要更新 golden 时用 ./gradlew test -ProborazziRecord=true 跑一次，再把新图提交。
+            all {
+                val record = providers.gradleProperty("roborazziRecord").orNull
+                if (record != null) it.systemProperty("roborazzi.record", record)
+            }
         }
     }
     packaging {
@@ -60,8 +65,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("androidx.graphics:graphics-shapes:1.0.1")
-    implementation("dev.chrisbanes.haze:haze:1.7.3")
-    implementation("dev.chrisbanes.haze:haze-materials:1.7.3")
+    implementation("dev.chrisbanes.haze:haze:2.0.1")
+    implementation("dev.chrisbanes.haze:haze-blur:2.0.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.tukaani:xz:1.10")

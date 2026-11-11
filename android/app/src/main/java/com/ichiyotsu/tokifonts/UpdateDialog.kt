@@ -25,7 +25,11 @@ fun UpdateDialog(vm: FontsViewModel) {
     val context = LocalContext.current
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         val file = vm.pendingUpdate
-        if (file != null && context.packageManager.canRequestPackageInstalls()) AppUpdate.install(context, file)
+        if (file != null && context.packageManager.canRequestPackageInstalls()) {
+            AppUpdate.install(context, file)
+        } else {
+            vm.flash("需要允许安装未知应用才能安装更新")
+        }
     }
     val offer = vm.updateOffer ?: return
     AlertDialog(

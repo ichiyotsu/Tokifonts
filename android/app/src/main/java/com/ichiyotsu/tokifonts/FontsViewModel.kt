@@ -11,12 +11,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -33,7 +36,7 @@ sealed interface FaceStatus {
     data class Failed(val message: String) : FaceStatus
 }
 
-class FontsViewModel(app: Application) : AndroidViewModel(app) {
+class FontsViewModel(app: Application, private val savedState: SavedStateHandle = SavedStateHandle()) : AndroidViewModel(app) {
     private val store = FontStore(app)
     private val prefs = app.getSharedPreferences(FontStore.PREFS, Application.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
@@ -51,13 +54,13 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
     var dynamicColor by mutableStateOf(true)
     var previewText by mutableStateOf(DEFAULT_PREVIEW)
     var previewOverrides by mutableStateOf<Map<String, String>>(emptyMap())
-    var query by mutableStateOf("")
-    var searchOpen by mutableStateOf(false)
-    var groupId by mutableStateOf("all")
-    var sectionId by mutableStateOf("all")
-    var tab by mutableIntStateOf(0)
-    var openFamilyId by mutableStateOf<String?>(null)
-    var installPage by mutableStateOf("fonts")
+    var query by mutableStateOf(savedState["query"] ?: "")
+    var searchOpen by mutableStateOf(savedState["searchOpen"] ?: false)
+    var groupId by mutableStateOf(savedState["groupId"] ?: "all")
+    var sectionId by mutableStateOf(savedState["sectionId"] ?: "all")
+    var tab by mutableIntStateOf(savedState["tab"] ?: 0)
+    var openFamilyId by mutableStateOf<String?>(savedState["openFamilyId"])
+    var installPage by mutableStateOf(savedState["installPage"] ?: "fonts")
     var checkOnLaunch by mutableStateOf(true)
     var updateOffer by mutableStateOf<UpdateOffer?>(null)
     var updateChecking by mutableStateOf(false)
@@ -67,6 +70,9 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         private set
     private var updateDismissed = false
     var message by mutableStateOf<String?>(null)
+    /** 每次 flash 自增：同一条文案连发两次也不会被 LaunchedEffect 当成“没变”丢掉。 */
+    var messageSeq by mutableIntStateOf(0)
+        private set
     var cacheBytes by mutableLongStateOf(0L)
         private set
     var exported by mutableStateOf<Set<String>>(emptySet())
@@ -79,14 +85,38 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         previewOverrides = decodeOverrides(prefs.getString(KEY_PREVIEW_OVERRIDES, null))
         checkOnLaunch = prefs.getBoolean(KEY_UPDATE_LAUNCH, true)
         exported = prefs.getStringSet(KEY_EXPORTED, emptySet()).orEmpty().toSet()
+        viewModelScope.launch {
+            // 导航状态写进 SavedStateHandle：进程被杀后回来，tab、详情页、搜索、筛选都还在。
+            snapshotFlow { listOf(tab, openFamilyId, installPage, query, groupId, sectionId, searchOpen) }.collect {
+                savedState["tab"] = tab
+                savedState["openFamilyId"] = openFamilyId
+                savedState["installPage"] = installPage
+                savedState["query"] = query
+                savedState["groupId"] = groupId
+                savedState["sectionId"] = sectionId
+                savedState["searchOpen"] = searchOpen
+            }
+        }
+        loadCatalog()
+    }
+
+    /** 目录加载失败后，错误页的“重试”按钮走这里。 */
+    fun retryLoad() {
+        if (catalog != null) return
+        loadError = null
+        loadCatalog()
+    }
+
+    private fun loadCatalog() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val json = app.assets.open("catalog.json").bufferedReader().use { it.readText() }
+                val json = getApplication<Application>().assets.open("catalog.json").bufferedReader().use { it.readText() }
                 val parsed = Catalog.parse(json)
                 store.seedIfFirstLaunch()
                 onMain {
                     catalog = parsed
                     refreshLocal()
+                    if (parsed.skipped > 0) flash("目录里有 ${parsed.skipped} 条损坏记录，已跳过")
                 }
             } catch (error: Throwable) {
                 onMain { loadError = error.message ?: "字库索引读取失败" }
@@ -131,7 +161,7 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updatePreview(text: String) {
         previewText = text
-        prefs.edit().putString(KEY_PREVIEW, text).apply()
+        savePreviewSoon()
     }
 
     fun previewFor(familyId: String): String = previewOverrides[familyId] ?: previewText
@@ -140,12 +170,24 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setFamilyPreview(familyId: String, text: String) {
         previewOverrides = if (text == previewText) previewOverrides - familyId else previewOverrides + (familyId to text)
-        saveOverrides()
+        savePreviewSoon()
     }
 
     fun clearFamilyPreview(familyId: String) {
         previewOverrides = previewOverrides - familyId
-        saveOverrides()
+        savePreviewSoon()
+    }
+
+    /** 预览文字每敲一键只改内存，停 300ms 后再写盘，避免输入时反复写 SharedPreferences。 */
+    private var previewSaveJob: Job? = null
+
+    private fun savePreviewSoon() {
+        previewSaveJob?.cancel()
+        previewSaveJob = viewModelScope.launch {
+            delay(300)
+            prefs.edit().putString(KEY_PREVIEW, previewText).apply()
+            saveOverrides()
+        }
     }
 
     private fun saveOverrides() {
@@ -253,7 +295,8 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
                 setStatus(face.id, FaceStatus.Failed(error.message ?: "下载失败"))
             } finally {
                 if (acquired) slots.release()
-                jobs.remove(face.id)
+                // 按值删除：取消后立刻重下同一字体时，旧任务的 finally 不能抹掉新任务的登记。
+                jobs.remove(face.id, job)
             }
         }
         jobs[face.id] = job
@@ -317,17 +360,26 @@ class FontsViewModel(app: Application) : AndroidViewModel(app) {
         if (!file.exists()) return@withContext null
         val key = typeKey(face, wght)
         typefaces.get(key)?.let { return@withContext it }
-        val built = if (face.variable && wght != null) {
-            Typeface.Builder(file).setFontVariationSettings("'wght' ${wght.coerceIn(1, 1000)}").build()
-        } else {
-            Typeface.createFromFile(file)
+        // 文件头校验只看前 12 字节，截断/损坏的字体到这里才可能暴露：创建失败就标为失败，
+        // 让用户能重新下载，而不是每次打开列表/详情都走到无保护的 Typeface 创建。
+        val built = runCatching {
+            if (face.variable && wght != null) {
+                Typeface.Builder(file).setFontVariationSettings("'wght' ${wght.coerceIn(1, 1000)}").build()
+            } else {
+                Typeface.createFromFile(file)
+            }
+        }.getOrNull()
+        if (built == null) {
+            setStatus(face.id, FaceStatus.Failed("字体文件损坏，请重新下载"))
+            return@withContext null
         }
-        if (built != null) typefaces.put(key, built)
+        typefaces.put(key, built)
         built
     }
 
     fun flash(text: String) {
         message = text
+        messageSeq++
     }
 
     fun consumeMessage() {

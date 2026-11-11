@@ -22,9 +22,19 @@ data class UpdateOffer(
 object VersionNames {
     fun isNewer(remote: String, current: String): Boolean {
         val next = stable(remote) ?: return false
-        val now = stable(current) ?: return false
+        // 远端带 - 后缀（beta）时不提示；但当前装的就是 beta 包时，要按去掉后缀的底版比，
+        // 且同底版的正式版也算更新，否则 beta 用户会永远收不到正式版。
+        val currentBase = current.trim().removePrefix("v").removePrefix("V")
+        val currentHadSuffix = '-' in currentBase
+        val now = stable(currentBase) ?: stable(currentBase.substringBefore('-')) ?: return false
         for (index in 0..2) if (next[index] != now[index]) return next[index] > now[index]
-        return false
+        return currentHadSuffix
+    }
+
+    /** 从资产文件名里抠版本号，如 tokifonts-0.1.2-android.apk → 0.1.2。 */
+    fun fromFileName(name: String): String? {
+        val match = Regex("""(\d+)\.(\d+)\.(\d+)""").find(name) ?: return null
+        return match.value
     }
 
     private fun stable(raw: String): IntArray? {
@@ -54,8 +64,7 @@ object AppUpdate {
             if (!response.isSuccessful) error("检查更新失败 HTTP ${response.code}")
             val json = JSONObject(response.body?.string().orEmpty())
             if (json.optBoolean("draft") || json.optBoolean("prerelease")) return null
-            val version = json.optString("tag_name")
-            if (!VersionNames.isNewer(version, current)) return null
+            val tagVersion = json.optString("tag_name")
             val assets = json.optJSONArray("assets") ?: return null
             var chosen: JSONObject? = null
             for (index in 0 until assets.length()) {
@@ -70,11 +79,17 @@ object AppUpdate {
             val asset = chosen ?: return null
             val url = asset.optString("browser_download_url")
             if (!url.startsWith("https://")) error("更新地址无效")
+            // 只信 tag 会误报：tag 与包内版本脱节时（如 tag v1.3.1 却装了 1.3.0 的包），
+            // 装完版本号仍小于 tag，会反复弹窗。资产文件名里的版本优先，取不到才回退到 tag。
+            val assetName = asset.optString("name").ifBlank { "tokifonts-update.apk" }
+            val fileVersion = VersionNames.fromFileName(assetName)
+            val version = fileVersion ?: tagVersion
+            if (!VersionNames.isNewer(version, current)) return null
             return UpdateOffer(
                 version = version.removePrefix("v").removePrefix("V"),
                 notes = json.optString("body"),
                 url = url,
-                assetName = asset.optString("name").ifBlank { "tokifonts-update.apk" },
+                assetName = assetName,
                 sha256 = asset.optString("digest").substringAfter("sha256:", "").lowercase(),
             )
         }
@@ -82,6 +97,16 @@ object AppUpdate {
 
     fun download(offer: UpdateOffer, dest: File, onProgress: (Float) -> Unit) {
         dest.parentFile?.mkdirs()
+        try {
+            downloadInto(offer, dest, onProgress)
+        } catch (error: Throwable) {
+            // 下载中途失败或校验不一致时删掉残包，不让不完整的 APK 一直占着 cache。
+            dest.delete()
+            throw error
+        }
+    }
+
+    private fun downloadInto(offer: UpdateOffer, dest: File, onProgress: (Float) -> Unit) {
         val request = Request.Builder().url(offer.url).header("User-Agent", "tokifonts/${offer.version}").build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("下载更新失败 HTTP ${response.code}")

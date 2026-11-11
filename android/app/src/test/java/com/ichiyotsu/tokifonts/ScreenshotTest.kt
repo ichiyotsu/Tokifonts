@@ -24,7 +24,7 @@ class ScreenshotTest {
     @Test fun settings() = shot("settings", false, 2)
     @Test fun settingsDark() = shot("settings-dark", true, 2)
 
-    @Test fun solutions() {
+    @Test fun tutorialIndex() {
         val vm = ready(false)
         vm.installPage = "tutorials"
         show(vm, 1)

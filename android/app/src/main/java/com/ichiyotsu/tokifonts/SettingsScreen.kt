@@ -18,9 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,15 +43,11 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
         Section(title = "外观") {
             Text("主题", style = MaterialTheme.typography.titleMedium)
             val options = listOf("跟随系统", "浅色", "深色")
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                options.forEachIndexed { index, label ->
-                    SegmentedButton(
-                        selected = vm.themeMode == index,
-                        onClick = { vm.persistTheme(index) },
-                        shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                    ) { Text(label) }
-                }
-            }
+            PillGroup(
+                options = options.mapIndexed { index, label -> index to label },
+                selected = vm.themeMode,
+                onSelect = { vm.persistTheme(it) },
+            )
             ListItem(
                 headlineContent = { Text("动态取色") },
                 supportingContent = { Text("用壁纸颜色生成界面配色") },
@@ -84,7 +77,7 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
         Section(title = "存储") {
             Text("已下载 $downloaded 个字体文件，占用 ${vm.cacheBytes.toSizeLabel()}。", style = MaterialTheme.typography.bodyLarge)
             Text(
-                "文件在应用私有目录。清除后需要重新下载。界面附带的 Google Sans 三档字重只在第一次启动时放入，清除后不会自动回来。",
+                "文件在应用私有目录。清除后需要重新下载。界面附带的 Google Sans 三档字重会在下次启动时自动补回。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
