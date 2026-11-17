@@ -43,12 +43,13 @@ jobs:
 
       - name: Restore pinned debug keystore (all .android locations)
         run: |
-          mkdir -p "$HOME/.android"
+          mkdir -p "$HOME/.android" "$HOME/.config/.android"
           echo "${{ secrets.TOKI_DEBUG_KEYSTORE_B64 }}" | base64 -d > "$HOME/.android/debug.keystore"
+          echo "${{ secrets.TOKI_DEBUG_KEYSTORE_B64 }}" | base64 -d > "$HOME/.config/.android/debug.keystore"
           if [ -n "$ANDROID_SDK_HOME" ]; then mkdir -p "$ANDROID_SDK_HOME/.android"; echo "${{ secrets.TOKI_DEBUG_KEYSTORE_B64 }}" | base64 -d > "$ANDROID_SDK_HOME/.android/debug.keystore"; fi
           echo "HOME=$HOME ANDROID_SDK_HOME=${ANDROID_SDK_HOME:-<unset>}"
-          ls -l "$HOME/.android/debug.keystore"
           keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -E "SHA256"
+          keytool -list -v -keystore "$HOME/.config/.android/debug.keystore" -storepass android | grep -E "SHA256"
 
 
       - name: Build release APK
