@@ -26,6 +26,8 @@ jobs:
         run: |
           mkdir -p "$HOME/.android"
           echo "${{ secrets.TOKI_DEBUG_KEYSTORE_B64 }}" | base64 -d > "$HOME/.android/debug.keystore"
+          ls -l "$HOME/.android/debug.keystore"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -E "SHA256|Alias name" || { echo "RESTORED KEYSTORE UNREADABLE"; exit 1; }
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
