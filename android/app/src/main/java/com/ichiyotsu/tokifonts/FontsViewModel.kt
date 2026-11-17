@@ -52,6 +52,10 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         private set
     var themeMode by mutableIntStateOf(0)
     var dynamicColor by mutableStateOf(true)
+    /** 种子色下标（语义 token 的 seeds 顺序）；点选种子即关动态取色，见 [setSeed]。 */
+    var seedIndex by mutableIntStateOf(0)
+    var reduceMotion by mutableStateOf(false)
+    var backdropBlur by mutableStateOf(true)
     var previewText by mutableStateOf(DEFAULT_PREVIEW)
     var previewOverrides by mutableStateOf<Map<String, String>>(emptyMap())
     var query by mutableStateOf(savedState["query"] ?: "")
@@ -78,9 +82,19 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     var exported by mutableStateOf<Set<String>>(emptySet())
         private set
 
+    /** 一键下载全部的聚合进度（非 null = 进行中；状态在 ViewModel，切标签页不丢失）。 */
+    var bulk by mutableStateOf<BulkProgress?>(null)
+        private set
+    private var bulkJob: Job? = null
+    private var bulkFaces: List<FontFace> = emptyList()
+    private var bulkSettled = false
+
     init {
         themeMode = prefs.getInt(KEY_THEME, 0)
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true)
+        seedIndex = prefs.getInt(KEY_SEED, 0)
+        reduceMotion = prefs.getBoolean(KEY_REDUCE_MOTION, false)
+        backdropBlur = prefs.getBoolean(KEY_BACKDROP_BLUR, true)
         previewText = prefs.getString(KEY_PREVIEW, DEFAULT_PREVIEW) ?: DEFAULT_PREVIEW
         previewOverrides = decodeOverrides(prefs.getString(KEY_PREVIEW_OVERRIDES, null))
         checkOnLaunch = prefs.getBoolean(KEY_UPDATE_LAUNCH, true)
@@ -164,6 +178,23 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     fun setDynamic(enabled: Boolean) {
         dynamicColor = enabled
         prefs.edit().putBoolean(KEY_DYNAMIC, enabled).apply()
+    }
+
+    /** 点选种子色即切到种子方案并关动态取色（TokiStudio 外观页同款行为）。 */
+    fun setSeed(index: Int) {
+        seedIndex = index
+        dynamicColor = false
+        prefs.edit().putInt(KEY_SEED, index).putBoolean(KEY_DYNAMIC, false).apply()
+    }
+
+    fun persistReduceMotion(enabled: Boolean) {
+        reduceMotion = enabled
+        prefs.edit().putBoolean(KEY_REDUCE_MOTION, enabled).apply()
+    }
+
+    fun persistBackdropBlur(enabled: Boolean) {
+        backdropBlur = enabled
+        prefs.edit().putBoolean(KEY_BACKDROP_BLUR, enabled).apply()
     }
 
     fun updatePreview(text: String) {
@@ -362,6 +393,99 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         family.faces.forEach { download(it) }
     }
 
+    /**
+     * 一键下载全部：把全部未 Ready 的 face 入队，复用 [download] 的守卫
+     * （已下载/下载中/排队中跳过）与 slots 并发信号量。聚合进度写进 [bulk]，
+     * 由收集 downloads 状态的协程推进；全部 face 到达终态（Ready/Failed，
+     * 或被手动取消）时弹汇总。预览联动不需要额外处理：列表与详情的预览读
+     * readyIds，face 变 Ready 后 LaunchedEffect 会重新取 Typeface；
+     * typefaces 缓存只存成功建出的 Typeface，从不缓存“文件不存在”的结果。
+     */
+    fun startBulkDownload() {
+        if (bulkJob?.isActive == true) return
+        val parsed = catalog ?: return
+        val readyIds = downloads.filterValues { it is FaceStatus.Ready }.keys
+        val pending = pendingDownloadFaces(parsed.families, readyIds)
+        if (pending.isEmpty()) {
+            flash("全部字体已下载")
+            return
+        }
+        bulkFaces = pending
+        bulkSettled = false
+        bulk = BulkProgress(
+            totalFaces = pending.size,
+            doneFaces = 0,
+            failedFaces = 0,
+            totalBytes = pending.sumOf { it.bytes },
+            doneBytes = 0L,
+            currentLabel = pending.first().fileName,
+        )
+        pending.forEach { download(it) }
+        bulkJob = viewModelScope.launch {
+            snapshotFlow { downloads }.collect { map ->
+                updateBulkProgress(map)
+                if (bulkFaces.none { val s = map[it.id]; s is FaceStatus.Downloading || s is FaceStatus.Queued }) {
+                    finishBulk()
+                }
+            }
+        }
+    }
+
+    /**
+     * 取消批量下载：只取消未完成的任务，已落盘的文件保留、不删除；
+     * 失败的 face 保持 Failed 状态（可逐个重试）。结束时弹汇总。
+     */
+    fun cancelBulkDownload() {
+        if (bulkJob == null) return
+        // 先停收集器，避免它在取消过程中误判“全部结束”再弹一次汇总。
+        val job = bulkJob
+        bulkJob = null
+        job?.cancel()
+        bulkFaces.forEach { face ->
+            val s = downloads[face.id]
+            if (s is FaceStatus.Downloading || s is FaceStatus.Queued) cancel(face)
+        }
+        finishBulk()
+    }
+
+    private fun updateBulkProgress(map: Map<String, FaceStatus>) {
+        val faces = bulkFaces
+        if (faces.isEmpty()) return
+        val done = faces.count { map[it.id] is FaceStatus.Ready }
+        val failed = faces.count { map[it.id] is FaceStatus.Failed }
+        var doneBytes = 0L
+        for (face in faces) {
+            when (val s = map[face.id]) {
+                is FaceStatus.Ready -> doneBytes += face.bytes
+                // 解压中（progress < 0）时文件已下完，按整文件计；下载中按进度折算。
+                is FaceStatus.Downloading -> doneBytes += if (s.progress < 0f) face.bytes else (face.bytes * s.progress).toLong()
+                else -> Unit
+            }
+        }
+        val current = faces.firstOrNull { val s = map[it.id]; s is FaceStatus.Downloading || s is FaceStatus.Queued }
+        bulk = BulkProgress(
+            totalFaces = faces.size,
+            doneFaces = done,
+            failedFaces = failed,
+            totalBytes = faces.sumOf { it.bytes },
+            doneBytes = doneBytes,
+            currentLabel = current?.fileName.orEmpty(),
+        )
+    }
+
+    private fun finishBulk() {
+        if (bulkSettled) return
+        bulkSettled = true
+        bulkJob?.cancel()
+        bulkJob = null
+        val map = downloads
+        val done = bulkFaces.count { map[it.id] is FaceStatus.Ready }
+        val failed = bulkFaces.count { map[it.id] is FaceStatus.Failed }
+        bulkFaces = emptyList()
+        bulk = null
+        flash("已下载 $done 个，失败 $failed 个")
+    }
+
     fun cancel(face: FontFace) {
         store.cancel(face.id)
         jobs.remove(face.id)?.cancel()
@@ -453,6 +577,9 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     companion object {
         private const val KEY_THEME = "theme"
         private const val KEY_DYNAMIC = "dynamic"
+        private const val KEY_SEED = "seed"
+        private const val KEY_REDUCE_MOTION = "reduce_motion"
+        private const val KEY_BACKDROP_BLUR = "backdrop_blur"
         private const val KEY_PREVIEW = "preview"
         private const val KEY_PREVIEW_OVERRIDES = "preview_overrides"
         private const val KEY_EXPORTED = "exported"

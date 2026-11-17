@@ -10,10 +10,11 @@ android {
     buildToolsVersion = "37.0.0"
     defaultConfig {
         applicationId = "com.ichiyotsu.tokifonts"
-        minSdk = 31
+        // TokiUI android.md：目标 Android 16 及以上（minSdk 36）。
+        minSdk = 36
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.1.3"
+        versionCode = 5
+        versionName = "0.1.4"
     }
     buildTypes {
         release {
@@ -22,6 +23,13 @@ android {
         }
     }
     buildFeatures { compose = true; buildConfig = true }
+    // 种子锁定测试要读 vendored 的语义 token 原文件：把主 assets 目录也放进
+    // 单元测试的 resources，测试用类加载器读到的就是打包进 APK 的同一份 JSON。
+    sourceSets {
+        named("test") {
+            resources.srcDir("src/main/assets")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -67,6 +75,8 @@ dependencies {
     implementation("androidx.graphics:graphics-shapes:1.0.1")
     implementation("dev.chrisbanes.haze:haze:2.0.1")
     implementation("dev.chrisbanes.haze:haze-blur:2.0.1")
+    // 种子色经 HCT + SchemeTonalSpot 生成完整 ColorScheme（Google material-color-utilities 的 Kotlin 实现）。
+    implementation("com.materialkolor:material-color-utilities:4.1.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.tukaani:xz:1.10")

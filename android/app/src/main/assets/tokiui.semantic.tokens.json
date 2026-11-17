@@ -1,0 +1,92 @@
+{
+  "name": "TokiUI",
+  "version": "0.2.0-b1",
+  "principles": [
+    "共享语义，保留各平台自己的控件、导航、材质和动效",
+    "用角色而不是把某一端的几何尺寸抄到其他端",
+    "跟随系统的深浅色、对比度、动效和文字缩放"
+  ],
+  "color": {
+    "seed": "#6750A4",
+    "seeds": [
+      {"id": "purple", "name": "紫", "value": "#6750A4"},
+      {"id": "blue", "name": "蓝", "value": "#0061A4"},
+      {"id": "teal", "name": "青", "value": "#006A6A"},
+      {"id": "green", "name": "绿", "value": "#146C2E"},
+      {"id": "orange", "name": "橙", "value": "#A85100"}
+    ],
+    "light": {
+      "canvas": "#FEF7FF",
+      "surface": "#FEF7FF",
+      "surfaceElevated": "#F3EDF7",
+      "textPrimary": "#1D1B20",
+      "textSecondary": "#49454F",
+      "accent": "#6750A4",
+      "onAccent": "#FFFFFF",
+      "accentContainer": "#EADDFF",
+      "onAccentContainer": "#21005D",
+      "danger": "#B3261E",
+      "onDanger": "#FFFFFF",
+      "border": "#79747E"
+    },
+    "dark": {
+      "canvas": "#141218",
+      "surface": "#141218",
+      "surfaceElevated": "#211F26",
+      "textPrimary": "#E6E0E9",
+      "textSecondary": "#CAC4D0",
+      "accent": "#D0BCFF",
+      "onAccent": "#381E72",
+      "accentContainer": "#4F378B",
+      "onAccentContainer": "#EADDFF",
+      "danger": "#F2B8B5",
+      "onDanger": "#601410",
+      "border": "#938F99"
+    }
+  },
+  "space": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "xxl": 32
+  },
+  "shape": {
+    "compact": 4,
+    "subtle": 8,
+    "standard": 12,
+    "emphasized": 16,
+    "large": 28,
+    "full": 9999
+  },
+  "type": {
+    "scalesWithSystem": true,
+    "latin": "Inter",
+    "cjk": "Source Han Sans",
+    "cjkBundledAs": "Noto Sans SC",
+    "roles": [
+      {"id": "display", "weight": "bold", "referenceSizeSp": 57, "android": "displayLarge", "apple": "largeTitle", "windows": "TitleLargeTextBlockStyle"},
+      {"id": "headline", "weight": "bold", "referenceSizeSp": 28, "android": "headlineMedium", "apple": "title", "windows": "SubtitleTextBlockStyle"},
+      {"id": "title", "weight": "bold", "referenceSizeSp": 22, "android": "titleLarge", "apple": "title2", "windows": "SubtitleTextBlockStyle"},
+      {"id": "body", "weight": "regular", "referenceSizeSp": 16, "android": "bodyLarge", "apple": "body", "windows": "BodyTextBlockStyle"},
+      {"id": "bodyEmphasized", "weight": "bold", "referenceSizeSp": 16, "android": "titleMedium", "apple": "headline", "windows": "BodyStrongTextBlockStyle"},
+      {"id": "label", "weight": "bold", "referenceSizeSp": 14, "android": "labelLarge", "apple": "subheadline", "windows": "CaptionTextBlockStyle"},
+      {"id": "caption", "weight": "regular", "referenceSizeSp": 12, "android": "bodySmall", "apple": "footnote", "windows": "CaptionTextBlockStyle"}
+    ]
+  },
+  "motion": {
+    "shortMs": 100,
+    "standardMs": 200,
+    "emphasizedMs": 350,
+    "reduced": "去掉装饰性位移，保留按压、焦点和进度这类状态反馈。Android 将 MotionScheme 从 expressive 切到 standard。"
+  },
+  "material": {
+    "persistent": "窗口级持久背景：Windows 用 Mica，Apple 用系统背景，Android 用 surface。",
+    "transient": "临时浮层才使用系统材质。Windows 的菜单和对话框走系统控件；Apple 在系统支持时用 Liquid Glass；Android 只有在能采样窗口内内容时才用 Haze，不用 Modifier.blur。浅色磨砂要比过透的白霜更沉一点，见 lightGlass。",
+    "fallback": "高对比、减少透明度，或采样模糊不可用时，退回不透明表面。文字不直接放在未受控的模糊上。自绘底栏在这条退路上的描边见 solidBar。",
+    "lightGlass": "浅色磨砂要比一层过透的白霜更沉、更有存在感，背后内容少透一点，但仍然是玻璃，不是实色条。深色磨砂保持较轻的白霜，不另加黑罩。",
+    "solidBar": "玻璃关闭或采样不可用时，自绘底栏用略厚的强调色描边，描边和选中胶囊之间留出间隙；未选项留在栏内。独立动作按钮在描边胶囊外侧，中间留缝。玻璃打开时不加这道粗描边，只保留磨砂。",
+    "scrollTitle": "内容滑到大标题或返回键后面时，色块只做与底栏相同的磨砂：模糊身后内容，标题直接放在磨砂上，不再叠一层不透明填色。玻璃打开时底栏没有粗描边，标题色块也不加描边。玻璃关闭或采样不可用时，改为不透明表面，并加上与实心底栏同粗的强调色描边。"
+  }
+}
