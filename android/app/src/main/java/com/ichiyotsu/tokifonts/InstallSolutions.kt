@@ -160,7 +160,7 @@ fun InstallTutorialIndex(vm: FontsViewModel, padding: PaddingValues) {
         InstallerTools.forEach { tool ->
             Surface(
                 onClick = { vm.installPage = "tutorial:${tool.id}" },
-                shape = MaterialTheme.shapes.large,
+                shape = TokiCardShape,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -194,7 +194,7 @@ fun InstallTutorial(vm: FontsViewModel, id: String, padding: PaddingValues) {
         tool.steps.forEachIndexed { index, step ->
             Text("${index + 1}. $step", style = MaterialTheme.typography.bodyLarge)
         }
-        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
             Text(tool.caution, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onTertiaryContainer, style = MaterialTheme.typography.bodyMedium)
         }
     }

@@ -37,7 +37,7 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
         item {
             Surface(
                 onClick = { vm.installPage = "tutorials" },
-                shape = MaterialTheme.shapes.extraLarge,
+                shape = TokiCardShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -52,7 +52,7 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
             }
         }
         items(InstallerTools, key = { it.id }) { tool ->
-            Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(tool.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                     Text(tool.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

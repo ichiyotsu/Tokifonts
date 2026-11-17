@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,11 +55,24 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             (vm.sectionId == "all" || family.section == vm.sectionId) &&
             (query.isEmpty() || family.matches(query))
     }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = padding.asPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+    Column(Modifier.fillMaxSize()) {
+        vm.bulk?.let { bulk ->
+            BulkProgressCard(
+                bulk,
+                onCancel = vm::cancelBulkDownload,
+                modifier = Modifier.padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = padding.calculateTopPadding() + 12.dp,
+                    bottom = 4.dp,
+                ),
+            )
+        }
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = padding.asPagePadding(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
         item {
             Text("Tokifonts", style = MaterialTheme.typography.displaySmallEmphasized)
             Text(
@@ -84,33 +96,36 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    FilterChip(selected = vm.groupId == "all", onClick = { vm.setGroup("all") }, label = { Text("全部") }, shape = ExpressiveChipShape)
+                    FilterChip(selected = vm.groupId == "all", onClick = { vm.setGroup("all") }, label = { Text("全部") })
                 }
                 items(catalog.groups, key = { it.id }) { group ->
-                    FilterChip(selected = vm.groupId == group.id, onClick = { vm.setGroup(group.id) }, label = { Text(group.name) }, shape = ExpressiveChipShape)
+                    FilterChip(selected = vm.groupId == group.id, onClick = { vm.setGroup(group.id) }, label = { Text(group.name) })
                 }
             }
         }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    FilterChip(selected = vm.sectionId == "all", onClick = { vm.sectionId = "all" }, label = { Text("全部分组") }, shape = ExpressiveChipShape)
+                    FilterChip(selected = vm.sectionId == "all", onClick = { vm.sectionId = "all" }, label = { Text("全部分组") })
                 }
                 items(sections, key = { it.id }) { section ->
                     FilterChip(
                         selected = vm.sectionId == section.id,
                         onClick = { vm.sectionId = section.id },
                         label = { Text(section.name) },
-                        shape = ExpressiveChipShape,
                     )
                 }
             }
+        }
+        item {
+            BulkDownloadEntry(vm)
         }
         if (families.isEmpty()) {
             item { Text("没有匹配的字体", style = MaterialTheme.typography.bodyLarge) }
         }
         items(families, key = { it.id }) { family ->
             FamilyCard(vm, family, catalog.sections.firstOrNull { it.id == family.section }?.name.orEmpty())
+        }
         }
     }
 }
@@ -136,7 +151,7 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
     }
     Surface(
         onClick = { vm.openFamilyId = family.id },
-        shape = ExpressiveCardShape,
+        shape = TokiCardShape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -148,12 +163,7 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
             )
             Text(
                 family.name,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 25.sp,
-                    lineHeight = 29.sp,
-                    letterSpacing = (-0.4).sp,
-                ),
+                style = MaterialTheme.typography.titleLarge,
             )
             Text(
                 listOf(family.nameEn, if (family.faces.isEmpty()) family.status.ifBlank { "暂无文件" } else "${family.faces.size} 个文件")
@@ -245,7 +255,6 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                                 }?.id ?: family.faces.first { it.optical == optical }.id
                             },
                             label = { Text(label.ifBlank { optical }) },
-                            shape = ExpressiveChipShape,
                         )
                     }
                 }
@@ -263,7 +272,6 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                             } ?: pool.first { it.variable == chip.variable && it.weight == chip.weight }).id
                         },
                         label = { Text(if (chip.variable) "可变" else chip.weightLabel) },
-                        shape = ExpressiveChipShape,
                     )
                 }
                 if (pool.any { it.italic }) {
@@ -279,7 +287,6 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                         },
                         enabled = twin,
                         label = { Text("斜体") },
-                        shape = ExpressiveChipShape,
                     )
                 }
             }
@@ -317,7 +324,6 @@ private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: Androi
                 selected = vm.previewFor(familyId) == text,
                 onClick = { vm.setFamilyPreview(familyId, text) },
                 label = { Text(label) },
-                shape = ExpressiveChipShape,
             )
         }
     }
@@ -389,7 +395,7 @@ private fun ChipRow(content: @Composable () -> Unit) {
 
 @Composable
 private fun InfoCard(title: String, body: String) {
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(body, style = MaterialTheme.typography.bodyMedium)

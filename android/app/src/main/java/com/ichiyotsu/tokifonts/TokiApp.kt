@@ -2,7 +2,6 @@ package com.ichiyotsu.tokifonts
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,9 +44,11 @@ private val Pages = listOf(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun TokiApp(vm: FontsViewModel, startTab: Int = -1, dark: Boolean = isSystemInDarkTheme()) {
+fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
     LaunchedEffect(startTab) { if (startTab >= 0) vm.tab = startTab }
     val haze = remember { HazeState() }
+    val glass = tokiChrome(haze, vm.backdropBlur)
+    val frostedChrome = vm.backdropBlur && TokiBlurCapability.canSampleInWindow
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(vm.messageSeq) {
         val text = vm.message ?: return@LaunchedEffect
@@ -68,7 +69,7 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1, dark: Boolean = isSystemInDa
         val navPx = maxOf(WindowInsets.navigationBars.getBottom(density), WindowInsets.systemGestures.getBottom(density))
         val nav = with(density) { navPx.toDp() }
         val padding = PaddingValues(
-            start = if (wide) 112.dp else 0.dp,
+            start = if (wide) 96.dp else 0.dp, // 宽窗口：官方 NavigationRail 80dp + 16dp 间距。
             top = WindowInsets.statusBars.let { with(density) { it.getTop(density).toDp() } },
             // 底部留白按底栏实测高度算：导航栏 + 胶囊 72.dp + 悬空 8.dp + 16.dp 间隙。
             bottom = if (wide) 24.dp else nav + BottomBarHeight + 24.dp,
@@ -123,9 +124,9 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1, dark: Boolean = isSystemInDa
                 }
             }
             if (wide) {
-                ExpressiveNavRail(Pages, vm.tab, select, actionIcon, actionLabel, act, Modifier.align(Alignment.CenterStart))
+                TokiNavRail(Pages, vm.tab, select, actionIcon, actionLabel, act, glass, Modifier.align(Alignment.CenterStart))
             } else {
-                ExpressiveBottomBar(Pages, vm.tab, select, actionIcon, actionLabel, act, haze, dark, Modifier.align(Alignment.BottomCenter))
+                ExpressiveBottomBar(Pages, vm.tab, select, actionIcon, actionLabel, act, glass, !frostedChrome, Modifier.align(Alignment.BottomCenter))
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = if (wide) 24.dp else nav + BottomBarHeight + 16.dp))
             UpdateDialog(vm)
@@ -143,3 +144,4 @@ fun PaddingValues.asPagePadding(horizontal: Dp = 20.dp, vertical: Dp = 12.dp): P
         bottom = calculateBottomPadding() + vertical,
     )
 }
+
