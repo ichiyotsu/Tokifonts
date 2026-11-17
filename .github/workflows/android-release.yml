@@ -1,13 +1,16 @@
 name: Android Release Build
 
+
 on:
   workflow_dispatch:
   push:
     tags:
       - 'v*'
 
+
 permissions:
   contents: write
+
 
 jobs:
   build:
@@ -16,11 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
 
       - name: Restore pinned debug keystore
         run: |
@@ -29,16 +34,34 @@ jobs:
           ls -l "$HOME/.android/debug.keystore"
           keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -E "SHA256|Alias name" || { echo "RESTORED KEYSTORE UNREADABLE"; exit 1; }
 
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-37.0 build-tools;37.0.0'
+
+
+      - name: Restore pinned debug keystore (all .android locations)
+        run: |
+          mkdir -p "$HOME/.android"
+          echo "${{ secrets.TOKI_DEBUG_KEYSTORE_B64 }}" | base64 -d > "$HOME/.android/debug.keystore"
+          if [ -n "$ANDROID_SDK_HOME" ]; then mkdir -p "$ANDROID_SDK_HOME/.android"; echo "${{ secrets.TOKI_DEBUG_KEYSTORE_B64 }}" | base64 -d > "$ANDROID_SDK_HOME/.android/debug.keystore"; fi
+          echo "HOME=$HOME ANDROID_SDK_HOME=${ANDROID_SDK_HOME:-<unset>}"
+          ls -l "$HOME/.android/debug.keystore"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -E "SHA256"
+
 
       - name: Build release APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
+
+
+      - name: Locate debug keystores used
+        run: |
+          find /home/runner /usr/lib/android-sdk -name "debug.keystore" 2>/dev/null | while read -r f; do echo "== $f"; keytool -list -v -keystore "$f" -storepass android 2>/dev/null | grep -E "SHA256" || echo "(unreadable)"; done
+
 
       - name: Prepare APK asset
         id: apk
@@ -49,11 +72,13 @@ jobs:
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "tokifonts-${VERSION}-android.apk" | head -n 1
           ls -lh "tokifonts-${VERSION}-android.apk"
 
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: tokifonts-${{ steps.apk.outputs.version }}-android
           path: tokifonts-${{ steps.apk.outputs.version }}-android.apk
+
 
       - name: Attach APK to release
         if: startsWith(github.ref, 'refs/tags/')
