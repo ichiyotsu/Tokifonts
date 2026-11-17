@@ -1,23 +1,47 @@
 package com.ichiyotsu.tokifonts
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
 
 internal data class InstallerTool(
     val id: String,
@@ -144,58 +168,179 @@ internal val InstallerTools = listOf(
 )
 
 @Composable
-fun InstallTutorialIndex(vm: FontsViewModel, padding: PaddingValues) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TextButton(onClick = { vm.installPage = "fonts" }) { Text("返回安装") }
-        Text("教程", style = MaterialTheme.typography.displaySmallEmphasized, color = MaterialTheme.colorScheme.onBackground)
-        Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-        Text(
-            "按各项目公开说明整理的使用顺序。不含利用细节。root 和改内核可能变砖、影响 Knox 或丢失数据。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        InstallerTools.forEach { tool ->
-            Surface(
-                onClick = { vm.installPage = "tutorial:${tool.id}" },
-                shape = TokiCardShape,
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(tool.name, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+fun InstallTutorialIndex(vm: FontsViewModel, padding: PaddingValues, hazeState: HazeState, backdropBlur: Boolean) {
+    val scroll = rememberScrollState()
+    val overlapped by remember { derivedStateOf { scroll.value > 0 } }
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(padding.asPagePadding()).padding(top = 64.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+            Text(
+                "按各项目公开说明整理的使用顺序。不含利用细节。root 和改内核可能变砖、影响 Knox 或丢失数据。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            InstallerTools.forEach { tool ->
+                Surface(
+                    onClick = { vm.installPage = "tutorial:${tool.id}" },
+                    shape = TokiCardShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(tool.name, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                }
             }
         }
+        TutorialOverlayHeader(
+            title = "教程",
+            onBack = { vm.installPage = "fonts" },
+            overlapped = overlapped,
+            backdropBlur = backdropBlur,
+            hazeState = hazeState,
+            contentPadding = padding,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
     }
 }
 
 @Composable
-fun InstallTutorial(vm: FontsViewModel, id: String, padding: PaddingValues) {
+fun InstallTutorial(vm: FontsViewModel, id: String, padding: PaddingValues, hazeState: HazeState, backdropBlur: Boolean) {
     val context = LocalContext.current
     val tool = InstallerTools.firstOrNull { it.id == id }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    val scroll = rememberScrollState()
+    val overlapped by remember { derivedStateOf { scroll.value > 0 } }
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(padding.asPagePadding()).padding(top = 64.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (tool == null) {
+                Text("没有这个教程", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
+            } else {
+                Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                // 步骤第一步就要用到这个工具的下载/官方入口：直接放在本页顶部，和安装页同一份
+                // InstallerTools 数据、同一组链接，不用再返回两级去安装页找（文案里的“上面的”指的就是这里）。
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
+                    OutlinedButton(onClick = { if (!openLink(context, tool.officialUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.officialLabel) }
+                }
+                tool.steps.forEachIndexed { index, step ->
+                    Text("${index + 1}. $step", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
+                }
+                Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Text(tool.caution, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onTertiaryContainer, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        TutorialOverlayHeader(
+            title = tool?.name ?: "教程",
+            onBack = { vm.installPage = "tutorials" },
+            overlapped = overlapped,
+            backdropBlur = backdropBlur,
+            hazeState = hazeState,
+            contentPadding = padding,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+    }
+}
+
+/**
+ * 教程子页的悬浮顶栏：返回键 + 大标题胶囊（对照 TokiStudio 的 OverlayTitleHeader）。
+ * 内容没滑到顶栏后面时两者都是裸字；滑到后面之后，各垫一块与底栏相同的磨砂色块
+ * （玻璃不可用时是不透明表面加与实心底栏同粗的描边）。字始终用 onSurface。
+ */
+@Composable
+private fun TutorialOverlayHeader(
+    title: String,
+    onBack: () -> Unit,
+    overlapped: Boolean,
+    backdropBlur: Boolean,
+    hazeState: HazeState,
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    val direction = LocalLayoutDirection.current
+    val cover by animateFloatAsState(if (overlapped) 1f else 0f, label = "scrollChip")
+    val content = MaterialTheme.colorScheme.onSurface
+    val titleShape = RoundedCornerShape(percent = 50)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(
+                start = contentPadding.calculateStartPadding(direction) + 20.dp,
+                end = contentPadding.calculateEndPadding(direction) + 20.dp,
+            )
+            .statusBarsPadding()
+            .heightIn(min = 64.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = { vm.installPage = "tutorials" }) { Text("返回教程") }
-        if (tool == null) {
-            Text("没有这个教程", style = MaterialTheme.typography.titleLarge)
-            return@Column
+        TutorialBackChip(
+            overlapped = overlapped,
+            backdropBlur = backdropBlur,
+            hazeState = hazeState,
+            onClick = onBack,
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .weight(1f, fill = false)
+                .heightIn(min = 56.dp)
+                .clip(titleShape),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            TokiScrollChipBackdrop(
+                shape = titleShape,
+                cover = cover,
+                backdropBlur = backdropBlur,
+                hazeState = hazeState,
+                applyBlur = true,
+                modifier = Modifier.matchParentSize(),
+            )
+            Text(
+                title,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                style = MaterialTheme.typography.headlineMedium,
+                color = content,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(tool.name, style = MaterialTheme.typography.displaySmallEmphasized)
-        Text("由 Grok 生成", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-        // 步骤第一步就要用到这个工具的下载/官方入口：直接放在本页顶部，和安装页同一份
-        // InstallerTools 数据、同一组链接，不用再返回两级去安装页找（文案里的“上面的”指的就是这里）。
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
-            OutlinedButton(onClick = { if (!openLink(context, tool.officialUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.officialLabel) }
-        }
-        tool.steps.forEachIndexed { index, step ->
-            Text("${index + 1}. $step", style = MaterialTheme.typography.bodyLarge)
-        }
-        Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
-            Text(tool.caution, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onTertiaryContainer, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** 返回键自己的大圆角色块，高度和标题胶囊对齐。滚动后与标题同一套磨砂。 */
+@Composable
+private fun TutorialBackChip(
+    overlapped: Boolean,
+    backdropBlur: Boolean,
+    hazeState: HazeState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val cover by animateFloatAsState(if (overlapped) 1f else 0f, label = "backChip")
+    val content = MaterialTheme.colorScheme.onSurface
+    TokiLongPressLabel("返回", modifier) {
+        Box(
+            Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .clickable(interactionSource = interaction, indication = ripple()) { onClick() }
+                .pressScale(interaction)
+                .semantics { contentDescription = "返回" },
+            contentAlignment = Alignment.Center,
+        ) {
+            TokiScrollChipBackdrop(
+                shape = CircleShape,
+                cover = cover,
+                backdropBlur = backdropBlur,
+                hazeState = hazeState,
+                applyBlur = true,
+                modifier = Modifier.matchParentSize(),
+            )
+            Symbol("arrow_back", filled = true, size = 24.dp, tint = content)
         }
     }
 }

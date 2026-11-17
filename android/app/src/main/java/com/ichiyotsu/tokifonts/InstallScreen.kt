@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -41,7 +42,7 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("教程", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(
                         "由 Grok 生成。按公开说明写的使用顺序，不含利用细节。",
@@ -57,7 +58,7 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
                     Text(tool.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                     Text(tool.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
+                        Button(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
                         OutlinedButton(onClick = { if (!openLink(context, tool.officialUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.officialLabel) }
                     }
                 }

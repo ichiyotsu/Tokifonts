@@ -4,7 +4,6 @@ package com.ichiyotsu.tokifonts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +17,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -40,6 +41,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -51,7 +55,7 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(padding.asPagePadding()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("设置", style = MaterialTheme.typography.displaySmallEmphasized)
+        Text("设置", style = MaterialTheme.typography.displaySmallEmphasized, color = MaterialTheme.colorScheme.onBackground)
         Section(title = "外观") {
             Text("主题", style = MaterialTheme.typography.titleMedium)
             val options = listOf("跟随系统", "浅色", "深色")
@@ -98,8 +102,7 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 onValueChange = vm::updatePreview,
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
-                // 与搜索框、详情预览框统一圆角 28dp（此前漏传 shape、走默认 8dp，全 App 不一致）。
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                // 输入框圆角用平台默认值（TokiUI 语义：shape 只用于自己画的表面）。
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 label = { Text("全局预览文字") },
             )
@@ -172,7 +175,7 @@ private fun SeedRow(vm: FontsViewModel) {
     val seeds = remember { TokiUiTokens.seeds(context) }
     val scheme = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -183,7 +186,12 @@ private fun SeedRow(vm: FontsViewModel) {
                     Modifier.size(40.dp).clip(CircleShape)
                         .background(seedColor(seed.value))
                         .then(if (selected) Modifier.border(3.dp, scheme.primary, CircleShape) else Modifier)
-                        .clickable { vm.setSeed(i) },
+                        .selectable(
+                            selected = selected,
+                            onClick = { vm.setSeed(i) },
+                            role = Role.RadioButton,
+                        )
+                        .semantics { contentDescription = seed.name },
                 )
                 Text(seed.name, style = MaterialTheme.typography.labelSmall)
             }
@@ -234,7 +242,7 @@ private fun TokiToggleButtonGroup(
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             content()
         }

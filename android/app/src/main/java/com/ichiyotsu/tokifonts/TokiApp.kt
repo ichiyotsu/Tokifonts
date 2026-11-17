@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -84,7 +86,31 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
             1 -> "教程"
             else -> "切换动态取色"
         }
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // 没写颜色的文字取 LocalContentColor。MaterialExpressiveTheme 不提供它，
+        // 默认是黑色——深色模式下直接放在背景上的文字（教程标题和步骤）就是黑字
+        // 压深底、无法阅读。这里按背景提供 onBackground，Surface、按钮、列表项
+        // 内部仍用各自的内容色，不受影响。
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+            TokiAppContent(vm, padding, haze, glass, frostedChrome, snackbar, nav, wide, actionIcon, actionLabel)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TokiAppContent(
+    vm: FontsViewModel,
+    padding: PaddingValues,
+    haze: HazeState,
+    glass: Modifier,
+    frostedChrome: Boolean,
+    snackbar: SnackbarHostState,
+    nav: Dp,
+    wide: Boolean,
+    actionIcon: String,
+    actionLabel: String,
+) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 when {
                     vm.catalog == null && vm.loadError == null -> {
@@ -103,8 +129,8 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
                     }
                     vm.tab == 0 && vm.openFamilyId != null -> FontDetail(vm, vm.openFamilyId!!, padding)
                     vm.tab == 0 -> LibraryScreen(vm, padding)
-                    vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> InstallTutorial(vm, vm.installPage.removePrefix("tutorial:"), padding)
-                    vm.tab == 1 && vm.installPage == "tutorials" -> InstallTutorialIndex(vm, padding)
+                    vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> InstallTutorial(vm, vm.installPage.removePrefix("tutorial:"), padding, haze, vm.backdropBlur)
+                    vm.tab == 1 && vm.installPage == "tutorials" -> InstallTutorialIndex(vm, padding, haze, vm.backdropBlur)
                     vm.tab == 1 -> InstallScreen(vm, padding)
                     else -> SettingsScreen(vm, padding)
                 }
@@ -132,7 +158,6 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
             UpdateDialog(vm)
         }
     }
-}
 
 @Composable
 fun PaddingValues.asPagePadding(horizontal: Dp = 20.dp, vertical: Dp = 12.dp): PaddingValues {

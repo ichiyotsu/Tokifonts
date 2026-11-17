@@ -342,7 +342,7 @@ private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: Androi
         supportingText = {
             Text(if (vm.hasFamilyPreview(familyId)) "只改这一套字体。恢复后跟设置里的全局文字。" else "还没单独改过，现在用的是设置里的全局文字。")
         },
-        shape = RoundedCornerShape(28.dp),
+        // 输入框圆角用平台默认值（TokiUI 语义：shape 只用于自己画的表面）；搜索框保留胶囊形。
     )
     TextButton(onClick = { vm.clearFamilyPreview(familyId) }) { Text("恢复为全局预览文字") }
 }
