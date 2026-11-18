@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /** 批量下载的聚合进度（状态在 ViewModel，切标签页不丢失）。 */
@@ -49,9 +51,13 @@ fun BulkDownloadEntry(vm: FontsViewModel, modifier: Modifier = Modifier) {
         Button(
             onClick = { confirm = true },
             enabled = vm.bulk == null,
-            modifier = modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
         ) {
-            Text("一键下载全部（约 ${pending.sumOf { it.bytes }.toSizeLabel()}，未下载部分）")
+            Text(
+                "一键下载全部（约 ${pending.sumOf { it.bytes }.toSizeLabel()}，未下载部分）",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
     if (confirm) {
@@ -88,10 +94,10 @@ fun BulkDownloadDialog(pending: List<FontFace>, onConfirm: () -> Unit, onDismiss
 fun BulkProgressCard(progress: BulkProgress, onCancel: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = TokiCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "${progress.doneFaces}/${progress.totalFaces} · " +

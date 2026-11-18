@@ -25,10 +25,9 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = padding.asPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
     ) {
         item {
-            Text("安装", style = MaterialTheme.typography.displaySmallEmphasized, color = MaterialTheme.colorScheme.onBackground)
             Text(
                 "普通应用不能把字体写成系统字体。下面是可以用的安装器，各自有下载页和官方页面。",
                 style = MaterialTheme.typography.bodyMedium,
@@ -42,7 +41,7 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
                     Text("教程", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(
                         "由 Grok 生成。按公开说明写的使用顺序，不含利用细节。",
@@ -53,8 +52,8 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
             }
         }
         items(InstallerTools, key = { it.id }) { tool ->
-            Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
                     Text(tool.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                     Text(tool.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

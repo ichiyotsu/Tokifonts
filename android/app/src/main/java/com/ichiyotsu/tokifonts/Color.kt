@@ -2,12 +2,15 @@ package com.ichiyotsu.tokifonts
 
 import android.os.Build
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import com.materialkolor.dynamiccolor.MaterialDynamicColors
@@ -26,6 +29,11 @@ import com.materialkolor.scheme.SchemeTonalSpot
  *    ——与 Android 平台生成动态色时所用的同一套方案与色调表——再把
  *    MaterialDynamicColors 的全部角色映射为完整的 Compose ColorScheme。
  *    种子列表来自语义 token（见 [TokiUiTokens]），不是手抄的色值。
+ *
+ * 3. 深色模式的底色对比微调（[ColorScheme.withDarkContrast]）：
+ *    官方深色阶梯里背景与容器只差几档色调，卡片浮不起来；这里把背景与
+ *    surface 压暗一点、把 surfaceContainer 阶梯抬起一点，色差只大一点点，
+ *    色相与饱和度不动。浅色模式不做任何改动。
  */
 
 /** 由种子色生成完整 ColorScheme（HCT / SchemeTonalSpot，官方算法）。 */
@@ -107,15 +115,49 @@ internal fun seedColor(value: String): Color {
  * 解析当前 ColorScheme：
  * - useDynamic = true 且系统支持 → 平台动态取色；
  * - 否则用选中的种子色生成（种子列表来自语义 token）。
+ * 深色模式下两种来源都过一遍底色对比微调（见文件头说明）。
  */
 @Composable
 fun resolveColorScheme(dark: Boolean, useDynamic: Boolean, seedIndex: Int): ColorScheme {
-    if (useDynamic && supportsDynamicColor) {
-        val context = LocalContext.current
-        return if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    }
     val context = LocalContext.current
-    val seeds = TokiUiTokens.seeds(context)
-    val seed = seeds[seedIndex.coerceIn(0, seeds.lastIndex)]
-    return schemeFromSeed(seedColor(seed.value), dark)
+    val base = if (useDynamic && supportsDynamicColor) {
+        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        val seeds = TokiUiTokens.seeds(context)
+        val seed = seeds[seedIndex.coerceIn(0, seeds.lastIndex)]
+        schemeFromSeed(seedColor(seed.value), dark)
+    }
+    return if (dark) base.withDarkContrast() else base
+}
+
+/**
+ * 深色底色对比微调：背景与 surface 压暗 8%，surfaceContainer 阶梯从
+ * 最低档的 3% 起、每档多抬一点、最高档 9%。叠黑/叠白只改变明度，
+ * 色相与饱和度保持官方方案的原样。
+ */
+private fun ColorScheme.withDarkContrast(): ColorScheme {
+    fun Color.darken(alpha: Float): Color = Color.Black.copy(alpha = alpha).compositeOver(this)
+    fun Color.lighten(alpha: Float): Color = Color.White.copy(alpha = alpha).compositeOver(this)
+    return copy(
+        background = background.darken(0.08f),
+        surface = surface.darken(0.08f),
+        surfaceDim = surfaceDim.darken(0.08f),
+        surfaceContainerLowest = surfaceContainerLowest.lighten(0.03f),
+        surfaceContainerLow = surfaceContainerLow.lighten(0.04f),
+        surfaceContainer = surfaceContainer.lighten(0.05f),
+        surfaceContainerHigh = surfaceContainerHigh.lighten(0.07f),
+        surfaceContainerHighest = surfaceContainerHighest.lighten(0.09f),
+    )
+}
+
+/**
+ * 全 App 页面底色：surface 家族内部的纵向台阶——不再用纯平的主题色，
+ * 改走 surfaceContainer → surface → background 的同色系内部过渡；
+ * 深色模式同一套 role 自动是深色系内部过渡。深色下台阶的对比由
+ * [ColorScheme.withDarkContrast] 统一抬起，这里不另写数值。
+ */
+@Composable
+fun tokiPageBackground(): Brush {
+    val scheme = MaterialTheme.colorScheme
+    return Brush.verticalGradient(listOf(scheme.surfaceContainer, scheme.surface, scheme.background))
 }

@@ -6,9 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -17,7 +17,6 @@ import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeFeatureFlags
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazePerformanceMode
-import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
@@ -25,7 +24,7 @@ import dev.chrisbanes.haze.blur.hazeBlur
 
 /**
  * 全局统一的玻璃（高斯模糊）参数与修饰符 —— 全 App 只有这一处定义模糊，
- * 悬浮底栏、滚动标题色块共用同一个 [tokiGlass]。
+ * 悬浮底栏、顶栏标题胶囊共用这一套。
  *（对照 TokiStudio `ui/theme/Glass.kt`，同一 commit 的 TokiUI 仓库。）
  *
  * - 模糊半径 **24dp**：落在 20–30dp 区间内。半径越大背景越糊、玻璃上的
@@ -42,13 +41,16 @@ import dev.chrisbanes.haze.blur.hazeBlur
  * 常见根源。选中态等需要强调的元素在玻璃之上另画实色（见悬浮底栏的
  * primary pill），可读性不依赖模糊本身。
  */
+val LocalHazeState = compositionLocalOf<HazeState?> { null }
+val LocalBackdropBlur = compositionLocalOf { true }
+
 /**
  * 窗口内背景采样是否可能成立。
  *
  * Compose [androidx.compose.ui.draw.blur] 和 Haze 的 [HazeInput.Content]
  * 都只模糊控件自己画出来的那一层，不能当作悬浮栏背后的实时模糊。
- * 底栏走 [HazeInput.Backdrop]：先采同一窗口里已经画好的像素，采不到时
- * 再回退到挂了 `hazeSource` 的内容根。底层仍是 API 31 的 RenderEffect。
+ * 固定尺寸的表面走 [HazeInput.Backdrop]：先采同一窗口里已经画好的像素，
+ * 采不到时再回退到挂了 `hazeSource` 的内容根。底层仍是 API 31 的 RenderEffect。
  * minSdk 36 上条件为真；能力判断仍集中在这一处。
  */
 @OptIn(ExperimentalHazeApi::class)
@@ -64,13 +66,30 @@ object TokiBlurCapability {
 }
 
 /**
- * 悬浮胶囊、独立按钮共用的表面。
+ * 固定尺寸的玻璃表面（独立按钮等）。
  * 开启且设备能采样时是 Haze 背景模糊；否则是不透明的 surfaceContainer。
+ * 尺寸会变的表面（悬浮底栏胶囊、顶栏标题胶囊）走内容源采样，见
+ * [tokiContentChrome] 与 [TokiScrollChipBackdrop]。
  */
 @Composable
 fun tokiChrome(state: HazeState, backdropBlur: Boolean): Modifier {
     return if (backdropBlur && TokiBlurCapability.canSampleInWindow) {
-        Modifier.tokiGlass(state)
+        Modifier.tokiGlass(state).background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.22f))
+    } else {
+        Modifier.background(MaterialTheme.colorScheme.surfaceContainer)
+    }
+}
+
+/**
+ * 尺寸会变的表面的 chrome（悬浮底栏胶囊）：与 [tokiChrome] 同一套
+ * 处理（磨砂 + 22% 表面色，不可用时实色），只把采样换成内容源
+ * （[tokiContentGlass]）——胶囊宽度随标签展开/收起连续变化，平台
+ * 窗口背景采样在这种尺寸动画里边缘会发黑，内容源采样不会。
+ */
+@Composable
+fun tokiContentChrome(state: HazeState, backdropBlur: Boolean): Modifier {
+    return if (backdropBlur && TokiBlurCapability.canSampleInWindow) {
+        Modifier.tokiContentGlass(state).background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.22f))
     } else {
         Modifier.background(MaterialTheme.colorScheme.surfaceContainer)
     }
@@ -98,15 +117,14 @@ object TokiGlassParams {
     fun fallback(dark: Boolean): Color = Color.Black.copy(alpha = if (dark) 0.45f else 0.30f)
 }
 
-/** 全 App 共用的模糊样式。 [fade] 非空时沿纵向做渐进模糊（只给顶部淡化带）。 */
-internal fun tokiBlurStyle(dark: Boolean, fade: HazeProgressive? = null): HazeBlurStyle = HazeBlurStyle {
+/** 全 App 共用的模糊样式。 */
+internal fun tokiBlurStyle(dark: Boolean): HazeBlurStyle = HazeBlurStyle {
     blurEnabled(true)
     blurRadius(TokiGlassParams.blurRadius)
     noiseFactor(TokiGlassParams.noise)
     backgroundColor(Color.Transparent)
     colorEffects(TokiGlassParams.tints(dark))
     fallbackColorEffect(HazeColorEffect.tint(TokiGlassParams.fallback(dark)))
-    if (fade != null) progressive(fade)
 }
 
 /**
@@ -126,39 +144,19 @@ fun Modifier.tokiGlass(state: HazeState): Modifier {
 }
 
 /**
- * 顶部模糊渐变淡化带的延伸高度。底栏不再挂全宽淡化带：那一层盖住胶囊
- * 背后的内容，磨砂看起来就像一块实色。胶囊自己的 [tokiGlass] 才是底栏模糊。
- */
-object TokiGlassFade {
-    val topFadeExtra: Dp = 56.dp
-}
-
-/**
- * 渐变淡化玻璃：与 [tokiGlass] 同一套参数（半径/tint/fallback/noise 一个
- * 不改，文字可读优先），只多了 Haze 2.0.1 的 progressive 渐进模糊——
- * 模糊强度沿纵向线性变化，而不是整块均匀模糊：
- * - [fadeFromTop] = true（顶部带）：顶边 intensity 1（满格模糊）→ 底边 0；
- * - false（底部带）：顶边 0 → 底边 1（越靠近底栏越糊）。
- * progressive 是库的一等能力（HazeBlurStyleScope.progressive），强度是真
- * 的模糊半径缩放，不是拿半透明遮罩盖一层均匀模糊冒充。
+ * 内容源玻璃：与 [tokiGlass] 同一套参数（半径/tint/fallback/noise 一个
+ * 不改），只换了输入 —— [HazeInput.Sources] 直接消费 `hazeSource` 录制
+ * 的内容根。给尺寸会变的表面用（顶栏标题胶囊、悬浮底栏）：平台窗口
+ * 背景采样在图层尺寸连续变化时，边缘会出现黑边或整块消失；
+ * 内容源采样由 Haze 自己重绘，不经过平台 RenderEffect 的尺寸动画，
+ * 尺寸变化时模糊始终完整。调用方先裁形状，再挂本修饰符。
  */
 @Composable
-fun Modifier.tokiGlassFade(state: HazeState, fadeFromTop: Boolean): Modifier {
+fun Modifier.tokiContentGlass(state: HazeState): Modifier {
     val dark = LocalDarkTheme.current
-    val fade = if (fadeFromTop) {
-        HazeProgressive.LinearGradient(
-            start = Offset(0f, 0f), startIntensity = 1f,
-            end = Offset(0f, 1f), endIntensity = 0f,
-        )
-    } else {
-        HazeProgressive.LinearGradient(
-            start = Offset(0f, 0f), startIntensity = 0f,
-            end = Offset(0f, 1f), endIntensity = 1f,
-        )
-    }
     return hazeBlur(
-        input = HazeInput.Backdrop(state),
-        style = tokiBlurStyle(dark, fade),
+        input = HazeInput.Sources(state),
+        style = tokiBlurStyle(dark),
         performanceMode = HazePerformanceMode.Quality,
     )
 }
@@ -173,40 +171,42 @@ object TokiChromeStroke {
 }
 
 /**
- * 滚动后出现的大标题 / 返回色块。
+ * 大标题 / 返回键的色块：默认就带磨砂，不随滚动出现或消失。
  *
- * 能采样时只铺与底栏相同的磨砂：[tokiGlass] 模糊身后内容，不再叠第二层填色，
- * 也不加粗描边（玻璃打开时底栏同样没有描边）。标题由调用方画在这一层上面。
- * 不能采样时改为不透明 `surfaceContainer`，并加上与实心底栏同粗的强调色描边。
+ * 旧实现按各页上报的滚动位置，用一个 cover 动画把磨砂淡入淡出：
+ * 上报、动画、透明度图层三处接力，磨砂会在滑动后消失。重写后色块不再
+ * 有任何条件：能采样时始终是与底栏相同的内容源磨砂（尺寸变化也不黑边），
+ * 标题由调用方画在这一层上面；不能采样时改为不透明 `surfaceContainer`，
+ * 并加上与实心底栏同粗的强调色描边。磨砂上再铺一层很轻的表面色与一道
+ * 细描边，让标题在任何背景上都有足够对比。
  *
- * [applyBlur] 为真时色块自己采样；调用方已经铺了玻璃时传 false，避免叠两层模糊。
- *
- * 注：Tokifonts 当前各页的标题都在滚动内容内部、没有悬浮顶栏，内容不会滑到
- * 标题或返回键后面，所以暂无调用方；本组件随玻璃层落地，供后续悬浮顶栏使用。
+ * [hazeState] 与 [backdropBlur] 默认读组合局部变量（App 骨架提供）；
+ * 调用方也可以显式传入。
  */
 @Composable
 fun TokiScrollChipBackdrop(
     shape: Shape,
-    cover: Float,
-    backdropBlur: Boolean,
+    backdropBlur: Boolean = LocalBackdropBlur.current,
     modifier: Modifier = Modifier,
-    hazeState: HazeState? = null,
-    applyBlur: Boolean = false,
+    hazeState: HazeState? = LocalHazeState.current,
 ) {
     val scheme = MaterialTheme.colorScheme
     val frosted = backdropBlur && TokiBlurCapability.canSampleInWindow
-    val canBlur = applyBlur && hazeState != null && cover > 0.01f && frosted
+    val state = hazeState
     Box(
         modifier
             .clip(shape)
-            .then(if (canBlur) Modifier.tokiGlass(hazeState) else Modifier)
             .then(
-                if (!frosted && cover > 0f) {
+                if (frosted && state != null) {
+                    Modifier.tokiContentGlass(state)
+                        .background(scheme.surfaceContainer.copy(alpha = 0.24f))
+                        .border(1.dp, scheme.outlineVariant.copy(alpha = 0.45f), shape)
+                } else if (!frosted) {
                     Modifier
-                        .background(scheme.surfaceContainer.copy(alpha = cover))
-                        .border(TokiChromeStroke.width, scheme.primary.copy(alpha = cover), shape)
+                        .background(scheme.surfaceContainer)
+                        .border(TokiChromeStroke.width, scheme.primary, shape)
                 } else {
-                    Modifier
+                    Modifier.background(scheme.surfaceContainer.copy(alpha = 0.24f))
                 },
             ),
     )

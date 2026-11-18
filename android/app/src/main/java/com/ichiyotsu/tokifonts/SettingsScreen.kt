@@ -9,10 +9,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -53,9 +53,8 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
     val downloaded = catalog?.families?.flatMap { it.faces }?.count { vm.status(it.id) is FaceStatus.Ready } ?: 0
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(padding.asPagePadding()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
     ) {
-        Text("设置", style = MaterialTheme.typography.displaySmallEmphasized, color = MaterialTheme.colorScheme.onBackground)
         Section(title = "外观") {
             Text("主题", style = MaterialTheme.typography.titleMedium)
             val options = listOf("跟随系统", "浅色", "深色")
@@ -115,10 +114,20 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 trailingContent = { Switch(checked = vm.checkOnLaunch, onCheckedChange = vm::persistCheckOnLaunch) },
                 colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
-            Button(onClick = { vm.checkUpdate(manual = true) }, enabled = !vm.updateChecking) { Text(if (vm.updateChecking) "正在检查" else "检查更新") }
+            Button(
+                onClick = { vm.checkUpdate(manual = true) },
+                enabled = !vm.updateChecking,
+                modifier = Modifier.heightIn(min = 56.dp),
+            ) {
+                Text(
+                    if (vm.updateChecking) "正在检查" else "检查更新",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
         Section(title = "存储") {
-            Text("已下载 $downloaded 个字体文件，占用 ${vm.cacheBytes.toSizeLabel()}。", style = MaterialTheme.typography.bodyLarge)
+            Text("已下载 $downloaded 个字体文件，占用 ${vm.cacheBytes.toSizeLabel()}。", style = MaterialTheme.typography.bodyMedium)
             Text(
                 "文件在应用私有目录。清除后需要重新下载。界面附带的 Google Sans 三档字重会在下次启动时自动补回。",
                 style = MaterialTheme.typography.bodyMedium,
@@ -128,14 +137,20 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
             vm.bulk?.let { bulk ->
                 BulkProgressCard(bulk, onCancel = vm::cancelBulkDownload)
             }
-            Button(onClick = { confirmClear = true }, enabled = downloaded > 0 || vm.cacheBytes > 0) { Text("清除下载") }
+            Button(
+                onClick = { confirmClear = true },
+                enabled = downloaded > 0 || vm.cacheBytes > 0,
+                modifier = Modifier.heightIn(min = 56.dp),
+            ) {
+                Text("清除下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
         }
         Section(title = "关于") {
             Text("tokifonts", style = MaterialTheme.typography.headlineMedium)
             Text("版本 ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleMedium)
             Text("versionCode ${BuildConfig.VERSION_CODE}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (catalog != null) {
-                Text("${catalog.families.size} 套字体，${catalog.families.sumOf { it.faces.size }} 个文件。", style = MaterialTheme.typography.bodyLarge)
+                Text("${catalog.families.size} 套字体，${catalog.families.sumOf { it.faces.size }} 个文件。", style = MaterialTheme.typography.bodyMedium)
             }
             Text(
                 "安装包里只有索引和界面字体。其余字体在使用时下载。",
@@ -147,7 +162,6 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.height(12.dp))
     }
     if (confirmClear) {
         AlertDialog(
@@ -220,7 +234,10 @@ private fun TokiToggleButtonGroup(
     ButtonGroup(
         overflowIndicator = { state ->
             TokiLongPressLabel("更多选项") {
-                IconButton(onClick = { state.show() }) {
+                IconButton(
+                    onClick = { state.show() },
+                    modifier = Modifier.semantics { contentDescription = "更多选项" },
+                ) {
                     Symbol("more_vert", size = 24.dp)
                 }
             }
@@ -241,8 +258,8 @@ private fun TokiToggleButtonGroup(
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             content()
         }

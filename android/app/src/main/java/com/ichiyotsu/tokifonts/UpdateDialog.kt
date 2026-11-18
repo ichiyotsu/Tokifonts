@@ -41,7 +41,7 @@ fun UpdateDialog(vm: FontsViewModel) {
                 Text(offer.notes.ifBlank { "这个版本没有附带说明。" }, style = MaterialTheme.typography.bodyMedium)
                 if (vm.updateDownloading) {
                     LinearProgressIndicator(progress = { vm.updateProgress }, modifier = Modifier.fillMaxWidth())
-                    Text("正在下载 ${(vm.updateProgress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
+                    Text("正在下载 ${(vm.updateProgress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },

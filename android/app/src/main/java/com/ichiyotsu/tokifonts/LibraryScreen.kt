@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -38,8 +41,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,28 +61,40 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             (query.isEmpty() || family.matches(query))
     }
     Column(Modifier.fillMaxSize()) {
-        vm.bulk?.let { bulk ->
+        val bulk = vm.bulk
+        bulk?.let {
             BulkProgressCard(
-                bulk,
+                it,
                 onCancel = vm::cancelBulkDownload,
                 modifier = Modifier.padding(
-                    start = 20.dp,
-                    end = 20.dp,
-                    top = padding.calculateTopPadding() + 12.dp,
-                    bottom = 4.dp,
+                    start = TokiSpacing.pageMargin,
+                    end = TokiSpacing.pageMargin,
+                    top = padding.calculateTopPadding() + TokiSpacing.sm,
+                    bottom = TokiSpacing.sm,
                 ),
             )
         }
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = padding.asPagePadding(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = if (bulk != null) {
+                // 进度卡已经占了顶栏之下的位置：列表不再重复垫顶栏高度，
+                // 否则卡和第一项之间会空出一个顶栏的距离。
+                val direction = LocalLayoutDirection.current
+                PaddingValues(
+                    start = padding.calculateStartPadding(direction) + TokiSpacing.pageMargin,
+                    end = padding.calculateEndPadding(direction) + TokiSpacing.pageMargin,
+                    top = 0.dp,
+                    bottom = padding.calculateBottomPadding() + TokiSpacing.sm,
+                )
+            } else {
+                padding.asPagePadding()
+            },
+            verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
         ) {
         item {
-            Text("Tokifonts", style = MaterialTheme.typography.displaySmallEmphasized)
             Text(
                 "${catalog.families.size} 套 · ${catalog.families.sumOf { it.faces.size }} 个文件",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -121,7 +138,13 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             BulkDownloadEntry(vm)
         }
         if (families.isEmpty()) {
-            item { Text("没有匹配的字体", style = MaterialTheme.typography.bodyLarge) }
+            item {
+                Text(
+                    "没有匹配的字体",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         items(families, key = { it.id }) { family ->
             FamilyCard(vm, family, catalog.sections.firstOrNull { it.id == family.section }?.name.orEmpty())
@@ -152,13 +175,13 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
     Surface(
         onClick = { vm.openFamilyId = family.id },
         shape = TokiCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
             Text(
                 listOf(section, family.tags.firstOrNull().orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(
@@ -173,13 +196,17 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (family.faces.isNotEmpty()) {
-                Text("已下载 $ready/${family.faces.size}", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "已下载 $ready/${family.faces.size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
                 val loaded = typeface
                 Text(
                     text = vm.previewFor(family.id).lineSequence().firstOrNull().orEmpty().ifBlank { DEFAULT_PREVIEW },
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(TokiSpacing.lg),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontFamily = loaded?.let { ComposeFontFamily(ComposeTypeface(it)) },
@@ -221,30 +248,32 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
         if (face.bytes in 1..AUTO_PREVIEW_BYTES && vm.status(face.id) is FaceStatus.Absent && isWifiConnected(context)) vm.download(face)
     }
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding(vertical = 8.dp)),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
+        verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
     ) {
-        TextButton(onClick = { vm.openFamilyId = null }) { Text("返回字体") }
-        Text(family.name, style = MaterialTheme.typography.displaySmallEmphasized)
         if (family.nameEn.isNotBlank() && family.nameEn != family.name) {
-            Text(family.nameEn, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(family.nameEn, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (family.alias.isNotBlank()) Text("也叫 ${family.alias}", style = MaterialTheme.typography.bodyMedium)
-        if (family.credit.isNotBlank()) Text("提供：${family.credit}", style = MaterialTheme.typography.bodyMedium)
-        Text(family.tags.joinToString(" · "), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        if (family.alias.isNotBlank()) {
+            Text("也叫 ${family.alias}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (family.credit.isNotBlank()) {
+            Text("提供：${family.credit}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(family.tags.joinToString(" · "), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
         PreviewEditor(vm, family.id, typeface, previewSize)
         if (selected == null) {
-            Text(family.statusDetail.ifBlank { "这个名字还没有字体文件。" }, style = MaterialTheme.typography.bodyLarge)
+            Text(family.statusDetail.ifBlank { "这个名字还没有字体文件。" }, style = MaterialTheme.typography.bodyMedium)
         } else {
-            Text("预览字号 $previewSize", style = MaterialTheme.typography.labelLarge)
+            Text("预览字号 $previewSize", style = MaterialTheme.typography.titleMedium)
             Slider(value = previewSize.toFloat(), onValueChange = { previewSize = it.toInt() }, valueRange = 18f..72f)
             if (selected.variable) {
-                Text("可变字重 ${axis.toInt()}", style = MaterialTheme.typography.labelLarge)
+                Text("可变字重 ${axis.toInt()}", style = MaterialTheme.typography.titleMedium)
                 Slider(value = axis, onValueChange = { axis = it }, valueRange = 100f..900f)
             }
             val opticals = family.faces.map { it.optical to it.opticalLabel }.distinct().filter { it.first.isNotBlank() }
             if (opticals.size > 1) {
-                Text("光学尺寸", style = MaterialTheme.typography.labelLarge)
+                Text("光学尺寸", style = MaterialTheme.typography.titleMedium)
                 ChipRow {
                     opticals.forEach { (optical, label) ->
                         FilterChip(
@@ -261,7 +290,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
             }
             val pool = family.faces.filter { selected.optical.isBlank() || it.optical == selected.optical }
             val weights = pool.distinctBy { it.variable to it.weight }.sortedWith(compareBy({ it.variable }, { it.weight }))
-            Text("字重", style = MaterialTheme.typography.labelLarge)
+            Text("字重", style = MaterialTheme.typography.titleMedium)
             ChipRow {
                 weights.forEach { chip ->
                     FilterChip(
@@ -293,8 +322,15 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
             Text(selected.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             DownloadBlock(vm, selected, state)
             if (family.faces.size > 1) {
-                OutlinedButton(onClick = { confirmAll = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("下载全部 ${family.faces.size} 个文件")
+                OutlinedButton(
+                    onClick = { confirmAll = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                ) {
+                    Text(
+                        "下载全部 ${family.faces.size} 个文件",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
                 if (confirmAll) {
                     AlertDialog(
@@ -317,7 +353,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
 
 @Composable
 private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: AndroidTypeface?, size: Int) {
-    Text("预设参考", style = MaterialTheme.typography.labelLarge)
+    Text("预设参考", style = MaterialTheme.typography.titleMedium)
     ChipRow {
         PREVIEW_PRESETS.forEach { (label, text) ->
             FilterChip(
@@ -370,13 +406,26 @@ private fun DownloadBlock(vm: FontsViewModel, face: FontFace, state: FaceStatus)
                     else -> vm.download(face)
                 }
             },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).heightIn(min = 56.dp),
             enabled = state !is FaceStatus.Ready,
-        ) { Text(if (state is FaceStatus.Downloading || state is FaceStatus.Queued) "取消" else label, maxLines = 2) }
+        ) {
+            Text(
+                if (state is FaceStatus.Downloading || state is FaceStatus.Queued) "取消" else label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+            )
+        }
     }
     if (state is FaceStatus.Ready) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        if (face.id in vm.exported) Text("已保存到下载目录", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        if (face.id in vm.exported) {
+            Text(
+                "已保存到下载目录",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { vm.export(face) }) { Text("保存到下载") }
             OutlinedButton(onClick = { vm.openWith(face) }) { Text("用其他应用打开") }
@@ -395,8 +444,8 @@ private fun ChipRow(content: @Composable () -> Unit) {
 
 @Composable
 private fun InfoCard(title: String, body: String) {
-    Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(body, style = MaterialTheme.typography.bodyMedium)
         }

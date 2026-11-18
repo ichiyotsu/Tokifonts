@@ -8,8 +8,8 @@ TokiUI 仓库；本仓库因工具限制无法跨仓库引用路径，改用**�
 ## 来源
 
 - 仓库：`ichiyotsu/TokiUI`（私有）
-- Pinned commit：`0edda3289be65e0ddd531515352d309a72f5089e`（HEAD，2026-11-16）
-- 语义标准版本：`0.2.0-b1`（用户口中的“TokiUI 0.1.4”是同期 TokiStudio Android
+- Pinned commit：`e6021f6169874db56f6977d594e4a4e7b6e4c00c`（TokiStudio Android 0.1.10，tag `v0.1.10`，2026-11-18；四份 vendored 文件与该 commit 逐字核对一致）
+- 语义标准版本：`0.2.0-b1`（用户口中的“TokiUI 0.1.10”是同期 TokiStudio Android
   应用的版本号；设计标准本身的版本以 token 文件里的 `version` 字段为准）
 
 ## Vendored 文件

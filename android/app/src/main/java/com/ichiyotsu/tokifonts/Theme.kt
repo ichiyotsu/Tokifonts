@@ -40,6 +40,37 @@ val LocalDarkTheme = staticCompositionLocalOf { false }
  */
 val TokiCardShape: Shape = RoundedCornerShape(28.dp)
 
+/**
+ * 间距：M3 的 4dp 基线网格阶梯；紧凑窗口的页面水平边距为 24dp。
+ *（对照 TokiStudio `ui/design/TokiDesignData.kt` 的 TokiSpacing，同一 commit 的 TokiUI 仓库。）
+ */
+object TokiSpacing {
+    val xs: Dp = 4.dp
+    val sm: Dp = 8.dp
+    val md: Dp = 12.dp
+    val lg: Dp = 16.dp
+    val xl: Dp = 24.dp
+    val xxl: Dp = 32.dp
+
+    /** 页面水平边距（紧凑窗口 margin）：24dp。 */
+    val pageMargin: Dp = xl
+
+    /**
+     * 大标题字形相对页面边距再往里的距离。顶栏标题胶囊的文字内边距用它，
+     * 标题字形和下面的正文左缘是同一条线。
+     */
+    val titleGlyphInset: Dp = lg
+
+    /** 悬浮容器与屏幕边缘的间距量级。 */
+    val floatingBarMargin: Dp = 16.dp
+
+    /** 悬浮导航下方留给内容的安全间距（在实测底栏高度之外追加）。 */
+    val contentGap: Dp = 16.dp
+
+    /** 窗口宽度达到此值时，主导航从悬浮胶囊换成 NavigationRail。 */
+    val expandedWindow: Dp = 840.dp
+}
+
 private fun Typography.withTokiType(family: FontFamily): Typography {
     fun TextStyle.bold() = copy(fontFamily = family, fontWeight = FontWeight.Bold)
     fun TextStyle.regular() = copy(fontFamily = family, fontWeight = FontWeight.Normal)
@@ -49,6 +80,11 @@ private fun Typography.withTokiType(family: FontFamily): Typography {
         titleLarge = titleLarge.bold(), titleMedium = titleMedium.bold(), titleSmall = titleSmall.bold(),
         bodyLarge = bodyLarge.regular(), bodyMedium = bodyMedium.regular(), bodySmall = bodySmall.regular(),
         labelLarge = labelLarge.bold(), labelMedium = labelMedium.bold(), labelSmall = labelSmall.bold(),
+        displayLargeEmphasized = displayLargeEmphasized.bold(), displayMediumEmphasized = displayMediumEmphasized.bold(), displaySmallEmphasized = displaySmallEmphasized.bold(),
+        headlineLargeEmphasized = headlineLargeEmphasized.bold(), headlineMediumEmphasized = headlineMediumEmphasized.bold(), headlineSmallEmphasized = headlineSmallEmphasized.bold(),
+        titleLargeEmphasized = titleLargeEmphasized.bold(), titleMediumEmphasized = titleMediumEmphasized.bold(), titleSmallEmphasized = titleSmallEmphasized.bold(),
+        bodyLargeEmphasized = bodyLargeEmphasized.bold(), bodyMediumEmphasized = bodyMediumEmphasized.bold(), bodySmallEmphasized = bodySmallEmphasized.bold(),
+        labelLargeEmphasized = labelLargeEmphasized.bold(), labelMediumEmphasized = labelMediumEmphasized.bold(), labelSmallEmphasized = labelSmallEmphasized.bold(),
     )
 }
 
