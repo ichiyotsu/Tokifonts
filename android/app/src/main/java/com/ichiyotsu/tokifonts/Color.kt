@@ -152,12 +152,13 @@ private fun ColorScheme.withDarkContrast(): ColorScheme {
 
 /**
  * 全 App 页面底色：surface 家族内部的纵向台阶——不再用纯平的主题色，
- * 改走 surfaceContainer → surface → background 的同色系内部过渡；
+ * 改走 surfaceContainer → surface 的同色系内部过渡；底部不再落到
+ * background（深色下近黑），与 TokiUI 0.1.11 的页面渐变一致。
  * 深色模式同一套 role 自动是深色系内部过渡。深色下台阶的对比由
  * [ColorScheme.withDarkContrast] 统一抬起，这里不另写数值。
  */
 @Composable
 fun tokiPageBackground(): Brush {
     val scheme = MaterialTheme.colorScheme
-    return Brush.verticalGradient(listOf(scheme.surfaceContainer, scheme.surface, scheme.background))
+    return Brush.verticalGradient(listOf(scheme.surfaceContainer, scheme.surface))
 }

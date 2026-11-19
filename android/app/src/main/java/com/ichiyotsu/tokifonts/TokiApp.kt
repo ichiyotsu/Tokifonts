@@ -24,19 +24,23 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.material3.Button
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +51,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import kotlinx.coroutines.launch
 
 private val Pages = listOf(
     NavEntry("text_fields", "字体"),
@@ -151,6 +156,36 @@ private fun TokiAppContent(
     onHeaderHeight: (Dp) -> Unit,
 ) {
     val motion = MaterialTheme.motionScheme
+    // 左边栏：只有字体列表页能打开（详情页、安装页、设置页没有入口），
+    // 抽屉盖住整页（含顶栏与底栏），返回键先关抽屉。
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
+    val onLibraryList = vm.tab == 0 && vm.openFamilyId == null
+    BackHandler(enabled = drawerState.isOpen) {
+        drawerScope.launch { drawerState.close() }
+    }
+    // 顶栏右端的一键下载：待下载集合与列表入口同一份计算。
+    val bulkPending = rememberBulkPending(vm)
+    var bulkConfirm by remember { mutableStateOf(false) }
+    val headerMenu: (() -> Unit)? = if (onLibraryList) {
+        { drawerScope.launch { drawerState.open() } }
+    } else {
+        null
+    }
+    val headerTrailing: (@Composable () -> Unit)? = if (onLibraryList && bulkPending.isNotEmpty()) {
+        {
+            TokiCircleIconChip(
+                icon = "download",
+                label = "一键下载全部",
+                backdropBlur = vm.backdropBlur,
+                hazeState = haze,
+                enabled = vm.bulk == null,
+                onClick = { bulkConfirm = true },
+            )
+        }
+    } else {
+        null
+    }
     val headerTitle: String = when {
         vm.tab == 0 && vm.openFamilyId != null -> vm.catalog?.family(vm.openFamilyId!!)?.name ?: "字体"
         vm.tab == 0 -> "字体"
@@ -178,6 +213,13 @@ private fun TokiAppContent(
         vm.tab == 1 -> "install"
         else -> "settings"
     }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = onLibraryList,
+        drawerContent = {
+            LibraryDrawerContent(vm, onClose = { drawerScope.launch { drawerState.close() } })
+        },
+    ) {
     Box(Modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = pageKey,
@@ -232,6 +274,8 @@ private fun TokiAppContent(
             backdropBlur = vm.backdropBlur,
             hazeState = haze,
             modifier = Modifier.align(Alignment.TopCenter).padding(start = if (wide) 96.dp else 0.dp),
+            onMenuClick = headerMenu,
+            trailing = headerTrailing,
         )
         val select = { index: Int ->
             vm.tab = index
@@ -254,6 +298,14 @@ private fun TokiAppContent(
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = if (wide) 24.dp else nav + BottomBarHeight + 16.dp))
         UpdateDialog(vm)
+        if (bulkConfirm) {
+            BulkDownloadDialog(
+                pending = bulkPending,
+                onConfirm = { bulkConfirm = false; vm.startBulkDownload() },
+                onDismiss = { bulkConfirm = false },
+            )
+        }
+    }
     }
 }
 

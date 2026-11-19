@@ -38,14 +38,23 @@ fun pendingDownloadFaces(families: List<FontFamily>, readyIds: Set<String>): Lis
     families.flatMap { it.faces }.filter { it.id !in readyIds }
 
 /**
+ * 待下载集合（顶栏下载按钮与列表入口共用）：全部 face 减去已 Ready 的。
+ * 随 catalog 与下载状态变化重新计算。
+ */
+@Composable
+fun rememberBulkPending(vm: FontsViewModel): List<FontFace> {
+    val catalog = vm.catalog ?: return emptyList()
+    val readyIds = vm.downloads.filterValues { it is FaceStatus.Ready }.keys
+    return remember(catalog, vm.downloads) { pendingDownloadFaces(catalog.families, readyIds) }
+}
+
+/**
  * 一键下载全部的入口按钮（字体列表页与设置页“存储”分组共用同一状态与对话框）。
  * 全部已下载时不显示；进行中时禁用（状态与取消走进度条）。
  */
 @Composable
 fun BulkDownloadEntry(vm: FontsViewModel, modifier: Modifier = Modifier) {
-    val catalog = vm.catalog ?: return
-    val readyIds = vm.downloads.filterValues { it is FaceStatus.Ready }.keys
-    val pending = remember(catalog, vm.downloads) { pendingDownloadFaces(catalog.families, readyIds) }
+    val pending = rememberBulkPending(vm)
     var confirm by remember { mutableStateOf(false) }
     if (pending.isNotEmpty()) {
         Button(

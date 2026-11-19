@@ -51,6 +51,13 @@ fun OverlayTitleHeader(
     backdropBlur: Boolean,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
+    /**
+     * 字体列表页的菜单键：有它时顶栏左端显示三条线（开左边栏）而不是返回键；
+     * 与 onBack 二选一，详情页、教程页仍用返回键。
+     */
+    onMenuClick: (() -> Unit)? = null,
+    /** 顶栏右端的动作位（字体列表页放一键下载的圆形按钮），其他页不传。 */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val content = MaterialTheme.colorScheme.onSurface
@@ -69,6 +76,15 @@ fun OverlayTitleHeader(
                 backdropBlur = backdropBlur,
                 hazeState = hazeState,
                 onClick = onBack,
+            )
+            Spacer(Modifier.width(TokiSpacing.md))
+        } else if (onMenuClick != null) {
+            TokiCircleIconChip(
+                icon = "menu",
+                label = "菜单",
+                backdropBlur = backdropBlur,
+                hazeState = hazeState,
+                onClick = onMenuClick,
             )
             Spacer(Modifier.width(TokiSpacing.md))
         }
@@ -95,6 +111,51 @@ fun OverlayTitleHeader(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (trailing != null) {
+            Spacer(Modifier.width(TokiSpacing.md))
+            trailing()
+        }
+    }
+}
+
+/**
+ * 顶栏的 56dp 圆形玻璃图标键（返回、菜单、一键下载共用同一套）：
+ * 默认就带磨砂（与标题同一套），不随滚动变化；长按弹出名称。
+ */
+@Composable
+fun TokiCircleIconChip(
+    icon: String,
+    label: String,
+    backdropBlur: Boolean,
+    hazeState: HazeState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val content = MaterialTheme.colorScheme.onSurface
+    TokiLongPressLabel(label, modifier) {
+        Box(
+            Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = ripple(),
+                    enabled = enabled,
+                ) { onClick() }
+                .pressScale(interaction)
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center,
+        ) {
+            TokiScrollChipBackdrop(
+                shape = CircleShape,
+                backdropBlur = backdropBlur,
+                hazeState = hazeState,
+                modifier = Modifier.matchParentSize(),
+            )
+            Symbol(icon, filled = true, size = 24.dp, tint = content)
+        }
     }
 }
 
@@ -106,25 +167,12 @@ fun TokiScrollBackChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val content = MaterialTheme.colorScheme.onSurface
-    TokiLongPressLabel("返回", modifier) {
-        Box(
-            Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .clickable(interactionSource = interaction, indication = ripple()) { onClick() }
-                .pressScale(interaction)
-                .semantics { contentDescription = "返回" },
-            contentAlignment = Alignment.Center,
-        ) {
-            TokiScrollChipBackdrop(
-                shape = CircleShape,
-                backdropBlur = backdropBlur,
-                hazeState = hazeState,
-                modifier = Modifier.matchParentSize(),
-            )
-            Symbol("arrow_back", filled = true, size = 24.dp, tint = content)
-        }
-    }
+    TokiCircleIconChip(
+        icon = "arrow_back",
+        label = "返回",
+        backdropBlur = backdropBlur,
+        hazeState = hazeState,
+        onClick = onClick,
+        modifier = modifier,
+    )
 }

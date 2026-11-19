@@ -3,8 +3,10 @@
 package com.ichiyotsu.tokifonts
 
 import android.graphics.Typeface as AndroidTypeface
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,17 +16,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -39,14 +48,23 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -111,17 +129,17 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             }
         }
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(selected = vm.groupId == "all", onClick = { vm.setGroup("all") }, label = { Text("全部") })
-                }
-                items(catalog.groups, key = { it.id }) { group ->
-                    FilterChip(selected = vm.groupId == group.id, onClick = { vm.setGroup(group.id) }, label = { Text(group.name) })
-                }
-            }
-        }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 分组行：大分类（公司字库 / 品牌主题 / …）已移到顶栏菜单打开的左边栏，
+            // 这里只留分组（苹果 / 谷歌 / …）的横向行，边缘淡出。
+            val sectionState = rememberLazyListState()
+            LazyRow(
+                state = sectionState,
+                modifier = Modifier.horizontalEdgeFade(
+                    showStart = sectionState.canScrollBackward,
+                    showEnd = sectionState.canScrollForward,
+                ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 item {
                     FilterChip(selected = vm.sectionId == "all", onClick = { vm.sectionId = "all" }, label = { Text("全部分组") })
                 }
@@ -133,9 +151,6 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
                     )
                 }
             }
-        }
-        item {
-            BulkDownloadEntry(vm)
         }
         if (families.isEmpty()) {
             item {
@@ -202,7 +217,7 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+            Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
                 val loaded = typeface
                 Text(
                     text = vm.previewFor(family.id).lineSequence().firstOrNull().orEmpty().ifBlank { DEFAULT_PREVIEW },
@@ -214,8 +229,12 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!previewReady && downloadTarget != null) {
-                TextButton(onClick = { vm.download(downloadTarget) }) { Text("下载预览") }
+            // 图示的卡片操作行：预览进详情页，下载拉预览字重的文件。
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { vm.openFamilyId = family.id }) { Text("预览") }
+                if (!previewReady && downloadTarget != null) {
+                    Button(onClick = { vm.download(downloadTarget) }) { Text("下载") }
+                }
             }
         }
     }
@@ -244,7 +263,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
     }
     LaunchedEffect(selected?.id) {
         val face = selected ?: return@LaunchedEffect
-        // 自动下载只在 Wi-Fi 下触发：移动数据下不静默耗流量，用户点“下载预览”再下。
+        // 自动下载只在 Wi-Fi 下触发：移动数据下不静默耗流量，用户点卡片上的“下载”再下。
         if (face.bytes in 1..AUTO_PREVIEW_BYTES && vm.status(face.id) is FaceStatus.Absent && isWifiConnected(context)) vm.download(face)
     }
     Column(
@@ -320,7 +339,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                 }
             }
             Text(selected.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            DownloadBlock(vm, selected, state)
+            DownloadBlock(vm, family, selected, state)
             if (family.faces.size > 1) {
                 OutlinedButton(
                     onClick = { confirmAll = true },
@@ -363,28 +382,43 @@ private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: Androi
             )
         }
     }
-    OutlinedTextField(
-        value = vm.previewFor(familyId),
-        onValueChange = { vm.setFamilyPreview(familyId, it) },
-        modifier = Modifier.fillMaxWidth(),
-        minLines = 3,
-        textStyle = TextStyle(
-            fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
-            fontSize = size.sp,
-            lineHeight = (size * 1.35f).sp,
-            color = MaterialTheme.colorScheme.onSurface,
-        ),
-        label = { Text("预览文字") },
-        supportingText = {
-            Text(if (vm.hasFamilyPreview(familyId)) "只改这一套字体。恢复后跟设置里的全局文字。" else "还没单独改过，现在用的是设置里的全局文字。")
-        },
-        // 输入框圆角用平台默认值（TokiUI 语义：shape 只用于自己画的表面）；搜索框保留胶囊形。
+    // 图示的预览卡：大圆角描边框，右下角 × 恢复为全局预览文字（只在改过时出现）。
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = vm.previewFor(familyId),
+            onValueChange = { vm.setFamilyPreview(familyId, it) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+            textStyle = TextStyle(
+                fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
+                fontSize = size.sp,
+                lineHeight = (size * 1.35f).sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            label = { Text("预览文字") },
+            // 大圆角：这块是字体试看的展示卡，按本轮用户要求用 28dp；
+            // 其余输入框仍按 TokiUI 语义用平台默认圆角。
+            shape = RoundedCornerShape(28.dp),
+        )
+        if (vm.hasFamilyPreview(familyId)) {
+            TokiLongPressLabel("恢复为全局预览文字") {
+                IconButton(
+                    onClick = { vm.clearFamilyPreview(familyId) },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp)
+                        .semantics { contentDescription = "恢复为全局预览文字" },
+                ) { Symbol("close", size = 20.dp) }
+            }
+        }
+    }
+    Text(
+        if (vm.hasFamilyPreview(familyId)) "只改这一套字体。恢复后跟设置里的全局文字。" else "还没单独改过，现在用的是设置里的全局文字。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    TextButton(onClick = { vm.clearFamilyPreview(familyId) }) { Text("恢复为全局预览文字") }
 }
 
 @Composable
-private fun DownloadBlock(vm: FontsViewModel, face: FontFace, state: FaceStatus) {
+private fun DownloadBlock(vm: FontsViewModel, family: FontFamily, face: FontFace, state: FaceStatus) {
     val label = when (state) {
         FaceStatus.Absent -> "下载并预览 · ${face.bytes.toSizeLabel()}"
         FaceStatus.Queued -> "等待下载"
@@ -397,6 +431,14 @@ private fun DownloadBlock(vm: FontsViewModel, face: FontFace, state: FaceStatus)
     } else if (state is FaceStatus.Downloading || state is FaceStatus.Queued) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
+    // 图示的下载行：主段下载当前字重（原有行为不变），箭头段开多选下拉菜单。
+    var menuOpen by remember(family.id) { mutableStateOf(false) }
+    var menuSelection by remember(family.id) { mutableStateOf(setOf(face.id)) }
+    // 菜单候选与字重行同一口径（光学尺寸过滤后按字重去重），每项即一个下载目标。
+    val pool = family.faces.filter { face.optical.isBlank() || it.optical == face.optical }
+    val menuFaces = pool.distinctBy { it.variable to it.weight }.sortedWith(compareBy({ it.variable }, { it.weight }))
+    val menuPending = menuSelection.mapNotNull { id -> menuFaces.firstOrNull { it.id == id } }
+        .filter { vm.status(it.id) !is FaceStatus.Ready }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Button(
             onClick = {
@@ -407,6 +449,7 @@ private fun DownloadBlock(vm: FontsViewModel, face: FontFace, state: FaceStatus)
                 }
             },
             modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+            shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 8.dp, bottomEnd = 8.dp),
             enabled = state !is FaceStatus.Ready,
         ) {
             Text(
@@ -415,6 +458,54 @@ private fun DownloadBlock(vm: FontsViewModel, face: FontFace, state: FaceStatus)
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
             )
+        }
+        Box {
+            Button(
+                onClick = { menuSelection = setOf(face.id); menuOpen = true },
+                modifier = Modifier.size(56.dp),
+                shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 28.dp, bottomEnd = 28.dp),
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Symbol("keyboard_arrow_down", size = 24.dp)
+            }
+            TokiDropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+                hazeState = if (LocalBackdropBlur.current) LocalHazeState.current else null,
+            ) {
+                menuFaces.forEach { candidate ->
+                    val ready = vm.status(candidate.id) is FaceStatus.Ready
+                    TokiSelectableMenuItem(
+                        selected = candidate.id in menuSelection,
+                        label = (if (candidate.variable) "可变" else candidate.weightLabel) + if (ready) " · 已下载" else "",
+                        onClick = {
+                            menuSelection =
+                                if (candidate.id in menuSelection) menuSelection - candidate.id
+                                else menuSelection + candidate.id
+                        },
+                    )
+                }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "下载所选（${menuPending.size} 个）",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    onClick = {
+                        menuPending.forEach { vm.download(it) }
+                        menuOpen = false
+                    },
+                    enabled = menuPending.isNotEmpty(),
+                )
+            }
+        }
+        if (state is FaceStatus.Ready) {
+            TextButton(onClick = { vm.delete(face) }) { Text("删除") }
+            TextButton(onClick = { vm.openWith(face) }) { Text("打开") }
         }
     }
     if (state is FaceStatus.Ready) {
@@ -428,18 +519,45 @@ private fun DownloadBlock(vm: FontsViewModel, face: FontFace, state: FaceStatus)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { vm.export(face) }) { Text("保存到下载") }
-            OutlinedButton(onClick = { vm.openWith(face) }) { Text("用其他应用打开") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { vm.share(face) }) { Text("分享") }
-            TextButton(onClick = { vm.delete(face) }) { Text("删除本地文件") }
         }
     }
 }
 
+/**
+ * 单行横向内容的边缘淡出：只在对应方向还能继续滚动时淡出该边；
+ * 内容放得下时两边都不淡出。淡出画在内容之上（DstIn），滚动时始终贴在边缘。
+ */
+private fun Modifier.horizontalEdgeFade(showStart: Boolean, showEnd: Boolean, fadeWidth: Dp = 24.dp): Modifier =
+    drawWithContent {
+        drawContent()
+        if ((!showStart && !showEnd) || size.width <= 0f) return@drawWithContent
+        val fade = fadeWidth.toPx().coerceAtMost(size.width / 2f)
+        val fraction = fade / size.width
+        val ltr = layoutDirection == LayoutDirection.Ltr
+        val fadeStart = if (ltr) showStart else showEnd
+        val fadeEnd = if (ltr) showEnd else showStart
+        drawRect(
+            brush = Brush.horizontalGradient(
+                0f to if (fadeStart) Color.Transparent else Color.Black,
+                fraction to Color.Black,
+                (1f - fraction) to Color.Black,
+                1f to if (fadeEnd) Color.Transparent else Color.Black,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+private fun Modifier.horizontalEdgeFade(scroll: ScrollState, fadeWidth: Dp = 24.dp): Modifier =
+    horizontalEdgeFade(showStart = scroll.value > 0, showEnd = scroll.value < scroll.maxValue, fadeWidth = fadeWidth)
+
 @Composable
 private fun ChipRow(content: @Composable () -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    val scroll = rememberScrollState()
+    Row(
+        Modifier.horizontalScroll(scroll).horizontalEdgeFade(scroll),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) { content() }
 }
 
 @Composable
@@ -448,6 +566,53 @@ private fun InfoCard(title: String, body: String) {
         Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(body, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+/**
+ * 字体页的左边栏：大分类（公司字库 / 品牌主题 / 城市主题 / 社区贡献）
+ * 由顶栏的三条线打开；点一项就切分类并关抽屉。
+ * 分组（苹果 / 谷歌 / …）仍留在页面里横向滚动，不进抽屉。
+ */
+@Composable
+fun LibraryDrawerContent(vm: FontsViewModel, onClose: () -> Unit) {
+    val catalog = vm.catalog
+    ModalDrawerSheet(
+        drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = TokiSpacing.lg, vertical = TokiSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("分类", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TokiLongPressLabel("关闭") {
+                    IconButton(onClick = onClose) { Symbol("close", size = 24.dp) }
+                }
+            }
+            NavigationDrawerItem(
+                label = { Text("全部") },
+                selected = vm.groupId == "all",
+                onClick = { vm.setGroup("all"); onClose() },
+                badge = { Text("${catalog?.families?.size ?: 0}", style = MaterialTheme.typography.labelLarge) },
+            )
+            catalog?.groups?.forEach { group ->
+                NavigationDrawerItem(
+                    label = { Text(group.name) },
+                    selected = vm.groupId == group.id,
+                    onClick = { vm.setGroup(group.id); onClose() },
+                    badge = {
+                        Text(
+                            "${catalog.families.count { it.group == group.id }}",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    },
+                )
+            }
         }
     }
 }
