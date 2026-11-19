@@ -13,8 +13,8 @@ android {
         // TokiUI android.md：目标 Android 16 及以上（minSdk 36）。
         minSdk = 36
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.1.5"
+        versionCode = 7
+        versionName = "0.1.6"
     }
     buildTypes {
         release {
