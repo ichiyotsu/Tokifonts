@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -32,9 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -51,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -109,13 +105,6 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             },
             verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
         ) {
-        item {
-            Text(
-                "${catalog.families.size} 套 · ${catalog.families.sumOf { it.faces.size }} 个文件",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         if (vm.searchOpen) {
             item {
                 OutlinedTextField(
@@ -162,7 +151,7 @@ fun LibraryScreen(vm: FontsViewModel, padding: PaddingValues) {
             }
         }
         items(families, key = { it.id }) { family ->
-            FamilyCard(vm, family, catalog.sections.firstOrNull { it.id == family.section }?.name.orEmpty())
+            FamilyCard(vm, family)
         }
         }
     }
@@ -176,7 +165,7 @@ private fun FontFamily.matches(query: String): Boolean {
 }
 
 @Composable
-private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) {
+private fun FamilyCard(vm: FontsViewModel, family: FontFamily) {
     // 预览用“已下载优先”的 face：在详情页下了别的字重，列表也要拿那个文件的字形来显示；
     // 旧逻辑只认 initialFace，下了非默认 face 时列表预览永远是系统字体，等于没按字体文件显示。
     val preview = vm.previewFace(family)
@@ -195,28 +184,9 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
     ) {
         Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
             Text(
-                listOf(section, family.tags.firstOrNull().orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
                 family.name,
                 style = MaterialTheme.typography.titleLarge,
             )
-            Text(
-                listOf(family.nameEn, if (family.faces.isEmpty()) family.status.ifBlank { "暂无文件" } else "${family.faces.size} 个文件")
-                    .filter { it.isNotBlank() }
-                    .joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (family.faces.isNotEmpty()) {
-                Text(
-                    "已下载 $ready/${family.faces.size}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
                 val loaded = typeface
                 Text(
@@ -229,11 +199,21 @@ private fun FamilyCard(vm: FontsViewModel, family: FontFamily, section: String) 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // 图示的卡片操作行：预览进详情页，下载拉预览字重的文件。
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { vm.openFamilyId = family.id }) { Text("预览") }
+            // 卡片只留下载：字体名只写中文名（不重复写英文名），
+            // 文件数合到下载按钮右边，写成“已下载 n/全部”。
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 if (!previewReady && downloadTarget != null) {
-                    Button(onClick = { vm.download(downloadTarget) }) { Text("下载") }
+                    Button(onClick = { vm.download(downloadTarget) }) { Text("下载预览字体") }
+                }
+                if (family.faces.isNotEmpty()) {
+                    Text(
+                        "已下载 $ready/${family.faces.size}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -246,7 +226,6 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
     val catalog = vm.catalog ?: return
     val family = catalog.family(familyId) ?: return
     var selectedId by remember(family.id) { mutableStateOf(family.initialFace()?.id) }
-    var confirmAll by remember(family.id) { mutableStateOf(false) }
     val selected = family.faces.firstOrNull { it.id == selectedId } ?: family.initialFace()
     var previewSize by remember(family.id) { mutableIntStateOf(32) }
     var axis by remember(selected?.id) { mutableFloatStateOf((selected?.weight ?: 400).toFloat()) }
@@ -270,21 +249,11 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.asPagePadding()),
         verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
     ) {
-        if (family.nameEn.isNotBlank() && family.nameEn != family.name) {
-            Text(family.nameEn, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (family.alias.isNotBlank()) {
-            Text("也叫 ${family.alias}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (family.credit.isNotBlank()) {
-            Text("提供：${family.credit}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(family.tags.joinToString(" · "), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
         PreviewEditor(vm, family.id, typeface, previewSize)
         if (selected == null) {
             Text(family.statusDetail.ifBlank { "这个名字还没有字体文件。" }, style = MaterialTheme.typography.bodyMedium)
         } else {
-            Text("预览字号 $previewSize", style = MaterialTheme.typography.titleMedium)
+            Text("字号 ${previewSize}px", style = MaterialTheme.typography.titleMedium)
             Slider(value = previewSize.toFloat(), onValueChange = { previewSize = it.toInt() }, valueRange = 18f..72f)
             if (selected.variable) {
                 Text("可变字重 ${axis.toInt()}", style = MaterialTheme.typography.titleMedium)
@@ -293,7 +262,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
             val opticals = family.faces.map { it.optical to it.opticalLabel }.distinct().filter { it.first.isNotBlank() }
             if (opticals.size > 1) {
                 Text("光学尺寸", style = MaterialTheme.typography.titleMedium)
-                ChipRow {
+                ChipRow(fadeColor = MaterialTheme.colorScheme.surface) {
                     opticals.forEach { (optical, label) ->
                         FilterChip(
                             selected = selected.optical == optical,
@@ -310,7 +279,7 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
             val pool = family.faces.filter { selected.optical.isBlank() || it.optical == selected.optical }
             val weights = pool.distinctBy { it.variable to it.weight }.sortedWith(compareBy({ it.variable }, { it.weight }))
             Text("字重", style = MaterialTheme.typography.titleMedium)
-            ChipRow {
+            ChipRow(fadeColor = MaterialTheme.colorScheme.surface) {
                 weights.forEach { chip ->
                     FilterChip(
                         selected = selected.variable == chip.variable && selected.weight == chip.weight,
@@ -338,68 +307,40 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
                     )
                 }
             }
-            Text(selected.fileName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             DownloadBlock(vm, family, selected, state)
-            if (family.faces.size > 1) {
-                OutlinedButton(
-                    onClick = { confirmAll = true },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                ) {
-                    Text(
-                        "下载全部 ${family.faces.size} 个文件",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                if (confirmAll) {
-                    AlertDialog(
-                        onDismissRequest = { confirmAll = false },
-                        title = { Text("下载全部") },
-                        text = { Text("一次下载 ${family.faces.size} 个文件，共 ${family.faces.sumOf { it.bytes }.toSizeLabel()}。") },
-                        confirmButton = {
-                            TextButton(onClick = { confirmAll = false; vm.downloadAll(family) }) { Text("下载") }
-                        },
-                        dismissButton = { TextButton(onClick = { confirmAll = false }) { Text("取消") } },
-                    )
-                }
-            }
         }
         InfoCard("介绍", family.summary)
         InfoCard("许可", family.license)
-        InfoCard("来源", family.sources.joinToString("、").ifBlank { "—" })
     }
 }
 
+/**
+ * 图一的预览卡：只展示，不可编辑——预设参考、输入框、说明文字都已去掉；
+ * 预览文字仍读全局文字（或这套字体之前单独改过的），右下角 × 只在改过时
+ * 出现，点一下恢复为全局预览文字。
+ */
 @Composable
 private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: AndroidTypeface?, size: Int) {
-    Text("预设参考", style = MaterialTheme.typography.titleMedium)
-    ChipRow {
-        PREVIEW_PRESETS.forEach { (label, text) ->
-            FilterChip(
-                selected = vm.previewFor(familyId) == text,
-                onClick = { vm.setFamilyPreview(familyId, text) },
-                label = { Text(label) },
+    Box(Modifier.fillMaxWidth()) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = vm.previewFor(familyId),
+                modifier = Modifier.fillMaxWidth().padding(TokiSpacing.xl),
+                style = TextStyle(
+                    fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
+                    fontSize = size.sp,
+                    lineHeight = (size * 1.35f).sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-    }
-    // 图示的预览卡：大圆角描边框，右下角 × 恢复为全局预览文字（只在改过时出现）。
-    Box(Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = vm.previewFor(familyId),
-            onValueChange = { vm.setFamilyPreview(familyId, it) },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3,
-            textStyle = TextStyle(
-                fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
-                fontSize = size.sp,
-                lineHeight = (size * 1.35f).sp,
-                color = MaterialTheme.colorScheme.onSurface,
-            ),
-            label = { Text("预览文字") },
-            // 大圆角：这块是字体试看的展示卡，按本轮用户要求用 28dp；
-            // 其余输入框仍按 TokiUI 语义用平台默认圆角。
-            shape = RoundedCornerShape(28.dp),
-        )
         if (vm.hasFamilyPreview(familyId)) {
             TokiLongPressLabel("恢复为全局预览文字") {
                 IconButton(
@@ -410,28 +351,13 @@ private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: Androi
             }
         }
     }
-    Text(
-        if (vm.hasFamilyPreview(familyId)) "只改这一套字体。恢复后跟设置里的全局文字。" else "还没单独改过，现在用的是设置里的全局文字。",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable
 private fun DownloadBlock(vm: FontsViewModel, family: FontFamily, face: FontFace, state: FaceStatus) {
-    val label = when (state) {
-        FaceStatus.Absent -> "下载并预览 · ${face.bytes.toSizeLabel()}"
-        FaceStatus.Queued -> "等待下载"
-        is FaceStatus.Downloading -> if (state.progress < 0f) "正在解压" else "下载中 ${(state.progress * 100).toInt()}%"
-        is FaceStatus.Ready -> "已下载 · ${state.file.length().toSizeLabel()}"
-        is FaceStatus.Failed -> "重试 · ${state.message}"
-    }
-    if (state is FaceStatus.Downloading && state.progress >= 0f) {
-        LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
-    } else if (state is FaceStatus.Downloading || state is FaceStatus.Queued) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-    }
-    // 图示的下载行：主段下载当前字重（原有行为不变），箭头段开多选下拉菜单。
+    // 图一的下载行：主段永远是“下载字体”——没下载时点它下载当前字重，
+    // 已下载时点它开菜单选别的字重；箭头段开多选下拉菜单。
+    // 保存到下载、分享、下载全部都已去掉（本轮用户要求）。
     var menuOpen by remember(family.id) { mutableStateOf(false) }
     var menuSelection by remember(family.id) { mutableStateOf(setOf(face.id)) }
     // 菜单候选与字重行同一口径（光学尺寸过滤后按字重去重），每项即一个下载目标。
@@ -439,21 +365,29 @@ private fun DownloadBlock(vm: FontsViewModel, family: FontFamily, face: FontFace
     val menuFaces = pool.distinctBy { it.variable to it.weight }.sortedWith(compareBy({ it.variable }, { it.weight }))
     val menuPending = menuSelection.mapNotNull { id -> menuFaces.firstOrNull { it.id == id } }
         .filter { vm.status(it.id) !is FaceStatus.Ready }
+    if (state is FaceStatus.Downloading && state.progress >= 0f) {
+        LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+    } else if (state is FaceStatus.Downloading || state is FaceStatus.Queued) {
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Button(
             onClick = {
                 when (state) {
-                    is FaceStatus.Ready -> Unit
+                    is FaceStatus.Ready -> { menuSelection = setOf(face.id); menuOpen = true }
                     is FaceStatus.Downloading, FaceStatus.Queued -> vm.cancel(face)
                     else -> vm.download(face)
                 }
             },
             modifier = Modifier.weight(1f).heightIn(min = 56.dp),
             shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 8.dp, bottomEnd = 8.dp),
-            enabled = state !is FaceStatus.Ready,
         ) {
             Text(
-                if (state is FaceStatus.Downloading || state is FaceStatus.Queued) "取消" else label,
+                when (state) {
+                    is FaceStatus.Downloading, FaceStatus.Queued -> "取消"
+                    is FaceStatus.Failed -> "重试"
+                    else -> "下载字体"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -500,6 +434,8 @@ private fun DownloadBlock(vm: FontsViewModel, family: FontFamily, face: FontFace
                         menuOpen = false
                     },
                     enabled = menuPending.isNotEmpty(),
+                    // 与可选菜单项同一套左右间距（8dp），文字左右对齐。
+                    modifier = Modifier.padding(horizontal = TokiSpacing.sm),
                 )
             }
         }
@@ -508,27 +444,25 @@ private fun DownloadBlock(vm: FontsViewModel, family: FontFamily, face: FontFace
             TextButton(onClick = { vm.openWith(face) }) { Text("打开") }
         }
     }
-    if (state is FaceStatus.Ready) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        if (face.id in vm.exported) {
-            Text(
-                "已保存到下载目录",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { vm.export(face) }) { Text("保存到下载") }
-            TextButton(onClick = { vm.share(face) }) { Text("分享") }
-        }
-    }
 }
 
 /**
  * 单行横向内容的边缘淡出：只在对应方向还能继续滚动时淡出该边；
- * 内容放得下时两边都不淡出。淡出画在内容之上（DstIn），滚动时始终贴在边缘。
+ * 内容放得下时两边都不淡出。
+ *
+ * 淡出直接画背景色的透明度渐变盖在内容上（TokiUI/MD3E 做法）：
+ * 边缘是实色背景色、向内淡到透明，只调透明度，不用 DstIn 遮罩——
+ * 遮罩会把同一画布上已画好的页面渐变也一起擦掉，边缘发黑。
+ * [color] 取这行所在位置的页面底色：列表顶部是 surfaceContainer，
+ * 详情页中部传 surface。
  */
-private fun Modifier.horizontalEdgeFade(showStart: Boolean, showEnd: Boolean, fadeWidth: Dp = 24.dp): Modifier =
+@Composable
+private fun Modifier.horizontalEdgeFade(
+    showStart: Boolean,
+    showEnd: Boolean,
+    fadeWidth: Dp = 24.dp,
+    color: Color = MaterialTheme.colorScheme.surfaceContainer,
+): Modifier =
     drawWithContent {
         drawContent()
         if ((!showStart && !showEnd) || size.width <= 0f) return@drawWithContent
@@ -539,23 +473,27 @@ private fun Modifier.horizontalEdgeFade(showStart: Boolean, showEnd: Boolean, fa
         val fadeEnd = if (ltr) showEnd else showStart
         drawRect(
             brush = Brush.horizontalGradient(
-                0f to if (fadeStart) Color.Transparent else Color.Black,
-                fraction to Color.Black,
-                (1f - fraction) to Color.Black,
-                1f to if (fadeEnd) Color.Transparent else Color.Black,
+                0f to color.copy(alpha = if (fadeStart) 1f else 0f),
+                fraction to color.copy(alpha = 0f),
+                (1f - fraction) to color.copy(alpha = 0f),
+                1f to color.copy(alpha = if (fadeEnd) 1f else 0f),
             ),
-            blendMode = BlendMode.DstIn,
         )
     }
 
-private fun Modifier.horizontalEdgeFade(scroll: ScrollState, fadeWidth: Dp = 24.dp): Modifier =
-    horizontalEdgeFade(showStart = scroll.value > 0, showEnd = scroll.value < scroll.maxValue, fadeWidth = fadeWidth)
+@Composable
+private fun Modifier.horizontalEdgeFade(
+    scroll: ScrollState,
+    fadeWidth: Dp = 24.dp,
+    color: Color = MaterialTheme.colorScheme.surfaceContainer,
+): Modifier =
+    horizontalEdgeFade(showStart = scroll.value > 0, showEnd = scroll.value < scroll.maxValue, fadeWidth = fadeWidth, color = color)
 
 @Composable
-private fun ChipRow(content: @Composable () -> Unit) {
+private fun ChipRow(fadeColor: Color = MaterialTheme.colorScheme.surfaceContainer, content: @Composable () -> Unit) {
     val scroll = rememberScrollState()
     Row(
-        Modifier.horizontalScroll(scroll).horizontalEdgeFade(scroll),
+        Modifier.horizontalScroll(scroll).horizontalEdgeFade(scroll, color = fadeColor),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) { content() }
 }
@@ -571,48 +509,46 @@ private fun InfoCard(title: String, body: String) {
 }
 
 /**
- * 字体页的左边栏：大分类（公司字库 / 品牌主题 / 城市主题 / 社区贡献）
+ * 字体页的左边栏内容：大分类（公司字库 / 品牌主题 / 城市主题 / 社区贡献）
  * 由顶栏的三条线打开；点一项就切分类并关抽屉。
  * 分组（苹果 / 谷歌 / …）仍留在页面里横向滚动，不进抽屉。
+ * 容器不在这里：外层按 TokiNote 的悬浮模糊设计给一块浮板（见 TokiApp），
+ * 这里只出内容，不贴边、不占满高。
  */
 @Composable
 fun LibraryDrawerContent(vm: FontsViewModel, onClose: () -> Unit) {
     val catalog = vm.catalog
-    ModalDrawerSheet(
-        drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = TokiSpacing.lg, vertical = TokiSpacing.xl),
+        verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm),
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = TokiSpacing.lg, vertical = TokiSpacing.xl),
-            verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("分类", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                TokiLongPressLabel("关闭") {
-                    IconButton(onClick = onClose) { Symbol("close", size = 24.dp) }
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("分类", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            TokiLongPressLabel("关闭") {
+                IconButton(onClick = onClose) { Symbol("close", size = 24.dp) }
             }
+        }
+        NavigationDrawerItem(
+            label = { Text("全部") },
+            selected = vm.groupId == "all",
+            onClick = { vm.setGroup("all"); onClose() },
+            badge = { Text("${catalog?.families?.size ?: 0}", style = MaterialTheme.typography.labelLarge) },
+        )
+        catalog?.groups?.forEach { group ->
             NavigationDrawerItem(
-                label = { Text("全部") },
-                selected = vm.groupId == "all",
-                onClick = { vm.setGroup("all"); onClose() },
-                badge = { Text("${catalog?.families?.size ?: 0}", style = MaterialTheme.typography.labelLarge) },
+                label = { Text(group.name) },
+                selected = vm.groupId == group.id,
+                onClick = { vm.setGroup(group.id); onClose() },
+                badge = {
+                    Text(
+                        "${catalog.families.count { it.group == group.id }}",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                },
             )
-            catalog?.groups?.forEach { group ->
-                NavigationDrawerItem(
-                    label = { Text(group.name) },
-                    selected = vm.groupId == group.id,
-                    onClick = { vm.setGroup(group.id); onClose() },
-                    badge = {
-                        Text(
-                            "${catalog.families.count { it.group == group.id }}",
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    },
-                )
-            }
         }
     }
 }

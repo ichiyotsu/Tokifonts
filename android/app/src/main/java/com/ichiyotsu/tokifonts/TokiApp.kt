@@ -2,12 +2,15 @@ package com.ichiyotsu.tokifonts
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,33 +20,33 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +54,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
-import kotlinx.coroutines.launch
 
 private val Pages = listOf(
     NavEntry("text_fields", "字体"),
@@ -90,10 +92,11 @@ fun TokiApp(vm: FontsViewModel, startTab: Int = -1) {
         snackbar.showSnackbar(text)
         vm.consumeMessage()
     }
-    BackHandler(enabled = vm.openFamilyId != null || vm.searchOpen || (vm.tab == 1 && vm.installPage != "fonts")) {
+    BackHandler(enabled = vm.openFamilyId != null || vm.searchOpen || (vm.tab == 1 && vm.installPage != "fonts") || (vm.tab == 2 && vm.settingsPage == "files")) {
         when {
             vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> vm.installPage = "tutorials"
             vm.tab == 1 && vm.installPage != "fonts" -> vm.installPage = "fonts"
+            vm.tab == 2 && vm.settingsPage == "files" -> vm.settingsPage = "main"
             vm.openFamilyId != null -> vm.openFamilyId = null
             vm.searchOpen -> vm.searchOpen = false
         }
@@ -156,31 +159,31 @@ private fun TokiAppContent(
     onHeaderHeight: (Dp) -> Unit,
 ) {
     val motion = MaterialTheme.motionScheme
+    // 遮罩的点击源：必须无条件 remember，不能放在 if (drawerOpen) 里。
+    val scrimInteraction = remember { MutableInteractionSource() }
     // 左边栏：只有字体列表页能打开（详情页、安装页、设置页没有入口），
-    // 抽屉盖住整页（含顶栏与底栏），返回键先关抽屉。
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val drawerScope = rememberCoroutineScope()
+    // TokiNote 式悬浮浮板（见下面的 AnimatedVisibility），不贴边；
+    // 返回键先关抽屉。
+    var drawerOpen by remember { mutableStateOf(false) }
     val onLibraryList = vm.tab == 0 && vm.openFamilyId == null
-    BackHandler(enabled = drawerState.isOpen) {
-        drawerScope.launch { drawerState.close() }
-    }
-    // 顶栏右端的一键下载：待下载集合与列表入口同一份计算。
+    BackHandler(enabled = drawerOpen) { drawerOpen = false }
+    // 顶栏右端的一键下载：单独居右，常驻显示（没有待下载时点它提示已下完）。
     val bulkPending = rememberBulkPending(vm)
     var bulkConfirm by remember { mutableStateOf(false) }
     val headerMenu: (() -> Unit)? = if (onLibraryList) {
-        { drawerScope.launch { drawerState.open() } }
+        { drawerOpen = true }
     } else {
         null
     }
-    val headerTrailing: (@Composable () -> Unit)? = if (onLibraryList && bulkPending.isNotEmpty()) {
+    val headerTrailing: (@Composable () -> Unit)? = if (onLibraryList) {
         {
             TokiCircleIconChip(
                 icon = "download",
-                label = "一键下载全部",
+                label = "一键下载",
                 backdropBlur = vm.backdropBlur,
                 hazeState = haze,
                 enabled = vm.bulk == null,
-                onClick = { bulkConfirm = true },
+                onClick = { if (bulkPending.isEmpty()) vm.flash("全部字体已下载") else bulkConfirm = true },
             )
         }
     } else {
@@ -191,17 +194,22 @@ private fun TokiAppContent(
         vm.tab == 0 -> "字体"
         vm.tab == 1 && vm.installPage.startsWith("tutorial:") ->
             InstallerTools.firstOrNull { it.id == vm.installPage.removePrefix("tutorial:") }?.name ?: "教程"
+        vm.tab == 1 && vm.installPage.startsWith("releases:") ->
+            InstallerTools.firstOrNull { it.id == vm.installPage.removePrefix("releases:") }?.name ?: "版本"
         vm.tab == 1 && vm.installPage == "tutorials" -> "教程"
         vm.tab == 1 -> "安装"
+        vm.tab == 2 && vm.settingsPage == "files" -> "字体文件"
         else -> "设置"
     }
     val headerBack: (() -> Unit)? = when {
         vm.tab == 0 && vm.openFamilyId != null -> { { vm.openFamilyId = null } }
         vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> { { vm.installPage = "tutorials" } }
+        vm.tab == 1 && vm.installPage.startsWith("releases:") -> { { vm.installPage = "fonts" } }
         vm.tab == 1 && vm.installPage == "tutorials" -> { { vm.installPage = "fonts" } }
+        vm.tab == 2 && vm.settingsPage == "files" -> { { vm.settingsPage = "main" } }
         else -> null
     }
-    // 页面键：AnimatedContent 按它切页；详情/教程把 id 写进键里，过渡期间
+    // 页面键：AnimatedContent 按它切页；详情/教程/版本把 id 写进键里，过渡期间
     // 新旧两页各按自己的键渲染，不会串页。
     val pageKey = when {
         vm.catalog == null && vm.loadError == null -> "loading"
@@ -209,17 +217,12 @@ private fun TokiAppContent(
         vm.tab == 0 && vm.openFamilyId != null -> "detail:${vm.openFamilyId}"
         vm.tab == 0 -> "library"
         vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> vm.installPage
+        vm.tab == 1 && vm.installPage.startsWith("releases:") -> vm.installPage
         vm.tab == 1 && vm.installPage == "tutorials" -> "tutorials"
         vm.tab == 1 -> "install"
+        vm.tab == 2 && vm.settingsPage == "files" -> "settings-files"
         else -> "settings"
     }
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = onLibraryList,
-        drawerContent = {
-            LibraryDrawerContent(vm, onClose = { drawerScope.launch { drawerState.close() } })
-        },
-    ) {
     Box(Modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = pageKey,
@@ -262,8 +265,10 @@ private fun TokiAppContent(
                 key.startsWith("detail:") -> FontDetail(vm, key.removePrefix("detail:"), padding)
                 key == "library" -> LibraryScreen(vm, padding)
                 key.startsWith("tutorial:") -> InstallTutorial(vm, key.removePrefix("tutorial:"), padding)
+                key.startsWith("releases:") -> InstallToolReleases(vm, key.removePrefix("releases:"), padding)
                 key == "tutorials" -> InstallTutorialIndex(vm, padding)
                 key == "install" -> InstallScreen(vm, padding)
+                key == "settings-files" -> FontFileManagerScreen(vm, padding)
                 else -> SettingsScreen(vm, padding)
             }
         }
@@ -281,6 +286,7 @@ private fun TokiAppContent(
             vm.tab = index
             vm.openFamilyId = null
             vm.installPage = "fonts"
+            vm.settingsPage = "main"
             // 搜索框属于字体页：切走就关掉，否则返回键会关一个看不见的搜索框。
             vm.searchOpen = false
         }
@@ -305,7 +311,38 @@ private fun TokiAppContent(
                 onDismiss = { bulkConfirm = false },
             )
         }
-    }
+        // 左边栏：TokiNote 式悬浮模糊浮板，不贴边——左右上下都留白、28dp 全圆角，
+        // 与顶栏标题、悬浮底栏同一套玻璃（TokiScrollChipBackdrop）；点遮罩或返回键关闭。
+        if (drawerOpen) {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .clickable(interactionSource = scrimInteraction, indication = null) { drawerOpen = false },
+            )
+        }
+        AnimatedVisibility(
+            visible = drawerOpen,
+            enter = fadeIn(motion.defaultEffectsSpec()) +
+                slideInHorizontally(motion.defaultSpatialSpec()) { -it },
+            exit = fadeOut(motion.defaultEffectsSpec()) +
+                slideOutHorizontally(motion.defaultSpatialSpec()) { -it },
+            modifier = Modifier.align(Alignment.TopStart)
+                .padding(
+                    start = if (wide) 96.dp + 16.dp else 16.dp,
+                    top = padding.calculateTopPadding() + 16.dp,
+                    bottom = padding.calculateBottomPadding() + 16.dp,
+                ),
+        ) {
+            Box(Modifier.width(300.dp).fillMaxHeight()) {
+                TokiScrollChipBackdrop(
+                    shape = RoundedCornerShape(28.dp),
+                    backdropBlur = vm.backdropBlur,
+                    hazeState = haze,
+                    modifier = Modifier.matchParentSize(),
+                )
+                LibraryDrawerContent(vm, onClose = { drawerOpen = false })
+            }
+        }
     }
 }
 

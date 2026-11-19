@@ -31,7 +31,8 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             TokiTheme(dark = dark, dynamic = vm.dynamicColor, seedIndex = vm.seedIndex, reduceMotion = vm.reduceMotion) {
-                LaunchedEffect(Unit) { if (vm.checkOnLaunch) vm.checkUpdate(manual = false) }
+                // 启动自动后台检查更新：没有开关，有新版就自动弹出下载页（UpdateDialog）。
+                LaunchedEffect(Unit) { vm.checkUpdate(manual = false) }
                 TokiApp(vm)
             }
         }

@@ -13,7 +13,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w412dp-h915dp-xxhdpi")
+@Config(sdk = [36], qualifiers = "w412dp-h915dp-xxhdpi")
 class ScreenshotTest {
     @get:Rule val rule = createComposeRule()
 
@@ -70,7 +70,6 @@ class ScreenshotTest {
         val vm = FontsViewModel(RuntimeEnvironment.getApplication())
         vm.prepareForTest()
         vm.dynamicColor = false
-        vm.checkOnLaunch = false
         vm.persistTheme(if (dark) 2 else 1)
         return vm
     }

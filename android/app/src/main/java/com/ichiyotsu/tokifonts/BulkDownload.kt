@@ -49,8 +49,9 @@ fun rememberBulkPending(vm: FontsViewModel): List<FontFace> {
 }
 
 /**
- * 一键下载全部的入口按钮（字体列表页与设置页“存储”分组共用同一状态与对话框）。
+ * 一键下载的入口按钮（字体列表页顶栏与设置页“存储”分组共用同一状态与对话框）。
  * 全部已下载时不显示；进行中时禁用（状态与取消走进度条）。
+ * 按钮只写“一键下载”，个数和大小在点开的确认框里说。
  */
 @Composable
 fun BulkDownloadEntry(vm: FontsViewModel, modifier: Modifier = Modifier) {
@@ -63,7 +64,7 @@ fun BulkDownloadEntry(vm: FontsViewModel, modifier: Modifier = Modifier) {
             modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
         ) {
             Text(
-                "一键下载全部（约 ${pending.sumOf { it.bytes }.toSizeLabel()}，未下载部分）",
+                "一键下载",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )

@@ -2,10 +2,7 @@
 
 package com.ichiyotsu.tokifonts
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,11 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -26,6 +21,7 @@ import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -38,9 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -71,8 +64,6 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 },
                 colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
-            Text("种子色", style = MaterialTheme.typography.titleMedium)
-            SeedRow(vm)
             ListItem(
                 headlineContent = { Text("减少动效") },
                 supportingContent = { Text("动效方案切换为 standard 弹簧") },
@@ -86,14 +77,6 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             )
         }
-        Section(title = "界面字体") {
-            Text("Inter + 思源黑体", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "拉丁文用 Inter，中文和其他汉字用思源黑体。应用内嵌官方 Inter，以及思源黑体的官方 Noto Sans SC，离线可用。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         Section(title = "预览文字") {
             Text("字体列表和还没单独改过的详情页都用这段文字。某一套字体在详情页改过的，不会被这里覆盖。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
@@ -105,15 +88,15 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 label = { Text("全局预览文字") },
             )
-            TextButton(onClick = vm::resetPreview) { Text("恢复默认") }
+            // 恢复默认与下面的检查更新同一套按钮样式（56dp 实心按钮、粗体标题字）。
+            Button(
+                onClick = vm::resetPreview,
+                modifier = Modifier.heightIn(min = 56.dp),
+            ) {
+                Text("恢复默认", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
         }
         Section(title = "更新") {
-            ListItem(
-                headlineContent = { Text("启动时检查更新") },
-                supportingContent = { Text("打开应用时查看 GitHub 上有没有新的正式版") },
-                trailingContent = { Switch(checked = vm.checkOnLaunch, onCheckedChange = vm::persistCheckOnLaunch) },
-                colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-            )
             Button(
                 onClick = { vm.checkUpdate(manual = true) },
                 enabled = !vm.updateChecking,
@@ -137,6 +120,13 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
             vm.bulk?.let { bulk ->
                 BulkProgressCard(bulk, onCancel = vm::cancelBulkDownload)
             }
+            OutlinedButton(
+                onClick = { vm.settingsPage = "files" },
+                enabled = downloaded > 0,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            ) {
+                Text("字体文件管理", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
             Button(
                 onClick = { confirmClear = true },
                 enabled = downloaded > 0 || vm.cacheBytes > 0,
@@ -146,21 +136,9 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
             }
         }
         Section(title = "关于") {
-            Text("tokifonts", style = MaterialTheme.typography.headlineMedium)
+            Text("TokiFonts", style = MaterialTheme.typography.headlineMedium)
             Text("版本 ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleMedium)
             Text("versionCode ${BuildConfig.VERSION_CODE}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (catalog != null) {
-                Text("${catalog.families.size} 套字体，${catalog.families.sumOf { it.faces.size }} 个文件。", style = MaterialTheme.typography.bodyMedium)
-            }
-            Text(
-                "安装包里只有索引和界面字体。其余字体在使用时下载。",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "界面字体 Inter 与 Noto Sans SC（思源黑体的官方发行）使用 SIL OFL 1.1；Google Sans 三档字重仍内置为预览种子字体，图标使用 Material Symbols（Apache 2.0）。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
     if (confirmClear) {
@@ -176,47 +154,6 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
         )
-    }
-}
-
-/**
- * 种子色点选（对照 TokiStudio 外观页）：种子列表来自语义 token，
- * 点选即切换为种子方案并关动态取色。
- */
-@Composable
-private fun SeedRow(vm: FontsViewModel) {
-    val context = LocalContext.current
-    val seeds = remember { TokiUiTokens.seeds(context) }
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        seeds.forEachIndexed { i, seed ->
-            val selected = !vm.dynamicColor && vm.seedIndex == i
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier.size(40.dp).clip(CircleShape)
-                        .background(seedColor(seed.value))
-                        .then(if (selected) Modifier.border(3.dp, scheme.primary, CircleShape) else Modifier)
-                        .selectable(
-                            selected = selected,
-                            onClick = { vm.setSeed(i) },
-                            role = Role.RadioButton,
-                        )
-                        .semantics { contentDescription = seed.name },
-                )
-                Text(seed.name, style = MaterialTheme.typography.labelSmall)
-            }
-        }
-        if (vm.dynamicColor) {
-            Text(
-                "当前使用动态取色，点选种子色即切换为种子方案",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
@@ -262,6 +199,60 @@ private fun Section(title: String, content: @Composable () -> Unit) {
         Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             content()
+        }
+    }
+}
+
+/**
+ * 字体文件管理（设置 → 存储 → 字体文件管理）：只列已经下载到本机的字体文件，
+ * 按套分组，每行一个文件，点删除就卸载这个文件（删本机文件，可重新下载）。
+ */
+@Composable
+fun FontFileManagerScreen(vm: FontsViewModel, padding: PaddingValues) {
+    val catalog = vm.catalog
+    val groups = catalog?.families?.mapNotNull { family ->
+        val ready = family.faces.filter { vm.status(it.id) is FaceStatus.Ready }
+        if (ready.isEmpty()) null else family to ready
+    }.orEmpty()
+    val total = groups.sumOf { it.second.size }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = padding.asPagePadding(),
+        verticalArrangement = Arrangement.spacedBy(TokiSpacing.lg),
+    ) {
+        item {
+            Text(
+                if (total == 0) "还没有下载的字体文件。" else "已下载 $total 个字体文件，占用 ${vm.cacheBytes.toSizeLabel()}。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        groups.forEach { (family, faces) ->
+            item {
+                Text(family.name, style = MaterialTheme.typography.titleLarge)
+            }
+            items(faces, key = { it.id }) { face ->
+                Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = TokiSpacing.xl, vertical = TokiSpacing.lg),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                if (face.variable) "可变" else face.weightLabel,
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                face.fileName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(onClick = { vm.delete(face) }) { Text("删除") }
+                    }
+                }
+            }
         }
     }
 }

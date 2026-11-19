@@ -65,7 +65,8 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     var tab by mutableIntStateOf(savedState["tab"] ?: 0)
     var openFamilyId by mutableStateOf<String?>(savedState["openFamilyId"])
     var installPage by mutableStateOf(savedState["installPage"] ?: "fonts")
-    var checkOnLaunch by mutableStateOf(true)
+    /** 设置页的二级页面："main" 主页 / "files" 字体文件管理。 */
+    var settingsPage by mutableStateOf(savedState["settingsPage"] ?: "main")
     var updateOffer by mutableStateOf<UpdateOffer?>(null)
     var updateChecking by mutableStateOf(false)
     var updateDownloading by mutableStateOf(false)
@@ -85,6 +86,14 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     /** 一键下载全部的聚合进度（非 null = 进行中；状态在 ViewModel，切标签页不丢失）。 */
     var bulk by mutableStateOf<BulkProgress?>(null)
         private set
+
+    /** 安装器仓库的 Release 列表（按工具 id 缓存，只取最近 5 个版本）。 */
+    var toolReleases by mutableStateOf<Map<String, List<ToolRelease>>>(emptyMap())
+        private set
+    var toolReleasesLoading by mutableStateOf<Set<String>>(emptySet())
+        private set
+    var toolReleasesError by mutableStateOf<Map<String, String>>(emptyMap())
+        private set
     private var bulkJob: Job? = null
     private var bulkFaces: List<FontFace> = emptyList()
     private var bulkSettled = false
@@ -97,14 +106,14 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         backdropBlur = prefs.getBoolean(KEY_BACKDROP_BLUR, true)
         previewText = prefs.getString(KEY_PREVIEW, DEFAULT_PREVIEW) ?: DEFAULT_PREVIEW
         previewOverrides = decodeOverrides(prefs.getString(KEY_PREVIEW_OVERRIDES, null))
-        checkOnLaunch = prefs.getBoolean(KEY_UPDATE_LAUNCH, true)
         exported = prefs.getStringSet(KEY_EXPORTED, emptySet()).orEmpty().toSet()
         viewModelScope.launch {
             // 导航状态写进 SavedStateHandle：进程被杀后回来，tab、详情页、搜索、筛选都还在。
-            snapshotFlow { listOf(tab, openFamilyId, installPage, query, groupId, sectionId, searchOpen) }.collect {
+            snapshotFlow { listOf(tab, openFamilyId, installPage, settingsPage, query, groupId, sectionId, searchOpen) }.collect {
                 savedState["tab"] = tab
                 savedState["openFamilyId"] = openFamilyId
                 savedState["installPage"] = installPage
+                savedState["settingsPage"] = settingsPage
                 savedState["query"] = query
                 savedState["groupId"] = groupId
                 savedState["sectionId"] = sectionId
@@ -238,11 +247,6 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         updatePreview(DEFAULT_PREVIEW)
     }
 
-    fun persistCheckOnLaunch(enabled: Boolean) {
-        checkOnLaunch = enabled
-        prefs.edit().putBoolean(KEY_UPDATE_LAUNCH, enabled).apply()
-    }
-
     fun checkUpdate(manual: Boolean) {
         if (updateChecking || updateDownloading) return
         // 已有下载好待安装的更新时不再重查：旋转重建会重跑启动检查，成功回调会清掉
@@ -325,6 +329,31 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         }
         jobRef = job
         job.start()
+    }
+
+    /**
+     * 安装器仓库的最近 5 个 Release：读 GitHub API，不带 token（公开仓库）。
+     * 取过的用缓存；[force] 时重新取。
+     */
+    fun loadToolReleases(tool: InstallerTool, force: Boolean = false) {
+        if (tool.id in toolReleasesLoading) return
+        if (!force && tool.id in toolReleases) return
+        toolReleasesLoading = toolReleasesLoading + tool.id
+        toolReleasesError = toolReleasesError - tool.id
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = fetchToolReleases(tool.repo)
+                onMain {
+                    toolReleasesLoading = toolReleasesLoading - tool.id
+                    toolReleases = toolReleases + (tool.id to list)
+                }
+            } catch (error: Throwable) {
+                onMain {
+                    toolReleasesLoading = toolReleasesLoading - tool.id
+                    toolReleasesError = toolReleasesError + (tool.id to (error.message ?: "读取失败"))
+                }
+            }
+        }
     }
 
     fun refreshLocal() {
@@ -583,7 +612,6 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         private const val KEY_PREVIEW = "preview"
         private const val KEY_PREVIEW_OVERRIDES = "preview_overrides"
         private const val KEY_EXPORTED = "exported"
-        private const val KEY_UPDATE_LAUNCH = "update_on_launch"
 
         private fun decodeOverrides(raw: String?): Map<String, String> {
             if (raw.isNullOrBlank()) return emptyMap()

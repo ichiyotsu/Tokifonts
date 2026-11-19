@@ -44,7 +44,7 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
                 Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
                     Text("教程", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(
-                        "由 Grok 生成。按公开说明写的使用顺序，不含利用细节。",
+                        "按公开说明写的使用顺序，不含利用细节。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -57,7 +57,9 @@ fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
                     Text(tool.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                     Text(tool.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { if (!openLink(context, tool.downloadUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.downloadLabel) }
+                        // 主入口不再直链某个写死的安装包：打开二级页面，读这个工具
+                        // 的仓库 Release，列最近 5 个版本，点 apk 文件直接下载。
+                        Button(onClick = { vm.installPage = "releases:${tool.id}" }) { Text("查看版本") }
                         OutlinedButton(onClick = { if (!openLink(context, tool.officialUrl)) vm.flash("没有可以打开链接的应用") }) { Text(tool.officialLabel) }
                     }
                 }
