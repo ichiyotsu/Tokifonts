@@ -27,6 +27,8 @@ data class FontFace(
     val mirrorRepo: String,
     val mirrorRef: String,
     val mirrorPath: String,
+    /** 额外的备用下载地址（jsDelivr 镜像等，不走 raw.githubusercontent.com）。 */
+    val extraUrls: List<String> = emptyList(),
 ) {
     fun usableExt(): String = when {
         innerName.endsWith(".otf", true) -> "otf"
@@ -36,8 +38,12 @@ data class FontFace(
 
     fun urls(): List<String> {
         val primary = FontUrls.raw(repo, ref, path)
-        if (mirrorRepo.isBlank() || mirrorPath.isBlank()) return listOf(primary)
-        return listOf(primary, FontUrls.raw(mirrorRepo, mirrorRef, mirrorPath))
+        val mirror = if (mirrorRepo.isBlank() || mirrorPath.isBlank()) {
+            emptyList()
+        } else {
+            listOf(FontUrls.raw(mirrorRepo, mirrorRef, mirrorPath))
+        }
+        return listOf(primary) + mirror + extraUrls
     }
 }
 
@@ -202,10 +208,16 @@ data class Catalog(
 
 object FontUrls {
     fun raw(repo: String, ref: String, path: String): String {
-        val encoded = path.split("/").joinToString("/") { segment ->
-            URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-        }
-        return "https://raw.githubusercontent.com/$repo/$ref/$encoded"
+        return "https://raw.githubusercontent.com/$repo/$ref/${encodePath(path)}"
+    }
+
+    /** jsDelivr 的 GitHub 镜像：raw.githubusercontent.com 503 时的备用下载地址。 */
+    fun jsdelivr(repo: String, ref: String, path: String): String {
+        return "https://cdn.jsdelivr.net/gh/$repo@$ref/${encodePath(path)}"
+    }
+
+    private fun encodePath(path: String): String = path.split("/").joinToString("/") { segment ->
+        URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
     }
 }
 

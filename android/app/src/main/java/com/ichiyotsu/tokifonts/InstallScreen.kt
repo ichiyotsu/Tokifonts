@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun InstallScreen(vm: FontsViewModel, padding: PaddingValues) {
+fun InstallResourcesScreen(vm: FontsViewModel, padding: PaddingValues) {
     val context = LocalContext.current
     LazyColumn(
         Modifier.fillMaxSize(),

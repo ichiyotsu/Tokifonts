@@ -2,6 +2,7 @@ package com.ichiyotsu.tokifonts
 
 import android.app.Application
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
@@ -35,6 +36,9 @@ sealed interface FaceStatus {
     data class Ready(val file: File) : FaceStatus
     data class Failed(val message: String) : FaceStatus
 }
+
+/** 换系统字体模块的状态。 */
+enum class SystemFontModuleState { NOT_GENERATED, GENERATED, INSTALLED, FAILED }
 
 class FontsViewModel(app: Application, private val savedState: SavedStateHandle = SavedStateHandle()) : AndroidViewModel(app) {
     private val store = FontStore(app)
@@ -87,6 +91,61 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     var bulk by mutableStateOf<BulkProgress?>(null)
         private set
 
+    // ---- 换系统字体（安装页默认内容）----
+    /** 模块状态：未生成 / 已生成 / 已安装 / 失败。 */
+    var sysFontModuleState by mutableStateOf(SystemFontModuleState.NOT_GENERATED)
+        private set
+    var sysFontDevice by mutableStateOf<DeviceCheck?>(null)
+        private set
+    /** root 检测结果：null = 还没测过。 */
+    var sysFontRoot by mutableStateOf<Boolean?>(null)
+        private set
+    var sysFontRootChecking by mutableStateOf(false)
+        private set
+    /** 五档语种开关（默认全开，SharedPreferences 持久化）。 */
+    var sysFontScripts by mutableStateOf<Map<SystemFontScript, Boolean>>(
+        SystemFontScript.entries.associateWith { it.defaultEnabled },
+    )
+        private set
+    var sysFontWorking by mutableStateOf(false)
+        private set
+    var sysFontProgress by mutableFloatStateOf(0f)
+        private set
+    /** 最近一步的错误文案（null = 无错误），界面直接展示。 */
+    var sysFontError by mutableStateOf<String?>(null)
+        private set
+    /** 本次安装的改动清单（安装前确认弹窗原样展示）。 */
+    var sysFontChangeList by mutableStateOf<List<SystemFont.FontChange>>(emptyList())
+        private set
+    /** 生成时 fonts.xml 结构校验是否通过（安装门禁之一）。 */
+    var sysFontXmlValidated by mutableStateOf(false)
+        private set
+    /** 生成时全部组合字体文件是否通过校验（安装门禁之一）。 */
+    var sysFontFilesVerified by mutableStateOf(false)
+        private set
+    /** 安装走的是哪条路（"ksud" / "复制"，安装后告诉用户）。 */
+    var sysFontInstallMethod by mutableStateOf<String?>(null)
+        private set
+    /** 安装后验证未通过时的警告文案（null = 验证通过或还没验证）。 */
+    var sysFontVerifyWarning by mutableStateOf<String?>(null)
+        private set
+    /** 回滚删了模块但 zygote 重启没确认时为 true：界面把“重启手机”顶到前面。 */
+    var sysFontNeedsReboot by mutableStateOf(false)
+        private set
+    /** 下载前空间检查的结果（null = 还没检查过）。 */
+    var sysFontSpaceOk by mutableStateOf<Boolean?>(null)
+        private set
+    /** 一键流程当前步骤文案（null = 没在跑一键）。 */
+    var sysFontStep by mutableStateOf<String?>(null)
+        private set
+    /** 组合字体文件目录（应用私有目录，不进 FontStore 的 fonts/ 目录）。 */
+    val sysFontDir: File = File(app.filesDir, "system-font").apply { mkdirs() }
+    /** 模块 staging 目录（生成后由此经 su 安装到 /data/adb/modules/tokifonts-font）。 */
+    val sysFontStagingDir: File = File(app.filesDir, "system-font-module")
+    /** ksud 安装用的模块 zip（staging 打包后放这里）。 */
+    val sysFontZipFile: File = File(sysFontDir, "tokifonts-font.zip")
+    private var sysFontJob: Job? = null
+
     /** 安装器仓库的 Release 列表（按工具 id 缓存，只取最近 5 个版本）。 */
     var toolReleases by mutableStateOf<Map<String, List<ToolRelease>>>(emptyMap())
         private set
@@ -107,6 +166,9 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         previewText = prefs.getString(KEY_PREVIEW, DEFAULT_PREVIEW) ?: DEFAULT_PREVIEW
         previewOverrides = decodeOverrides(prefs.getString(KEY_PREVIEW_OVERRIDES, null))
         exported = prefs.getStringSet(KEY_EXPORTED, emptySet()).orEmpty().toSet()
+        sysFontScripts = SystemFontScript.entries.associateWith { script ->
+            prefs.getBoolean(KEY_SYSFONT_SCRIPT_PREFIX + script.name, script.defaultEnabled)
+        }
         viewModelScope.launch {
             // 导航状态写进 SavedStateHandle：进程被杀后回来，tab、详情页、搜索、筛选都还在。
             snapshotFlow { listOf(tab, openFamilyId, installPage, settingsPage, query, groupId, sectionId, searchOpen) }.collect {
@@ -372,6 +434,17 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 next[face.id] = FaceStatus.Ready(file)
             }
         }
+        // 程序构造的 JP/KR 两档不在 catalog 里，上面扫不到：只要本地文件存在且
+        // 通过大小 + 文件头 + SHA-256 全套校验，就标 Ready，免得每次点下载都重下 17MB。
+        for (script in listOf(SystemFontScript.JP, SystemFontScript.KR)) {
+            val face = SystemFont.remoteFace(script)
+            val existing = next[face.id]
+            if (existing is FaceStatus.Downloading || existing is FaceStatus.Queued) continue
+            val file = store.file(face)
+            if (SystemFont.verifyFontFile(file, script) == null) {
+                next[face.id] = FaceStatus.Ready(file)
+            }
+        }
         downloads = next
         cacheBytes = store.storedBytes()
     }
@@ -586,6 +659,478 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         built
     }
 
+    // ---- 换系统字体 ----
+    /** 待验证固件的用户额外确认：勾选后才放行一键 / 分步安装；每次重新检查设备时清零。 */
+    var sysFontCalibratedConfirmed by mutableStateOf(false)
+
+    fun setSystemFontCalibratedConfirmed(confirmed: Boolean) {
+        sysFontCalibratedConfirmed = confirmed
+    }
+
+    /** 设备检查：固件表优先（机型 + 固件号 + 内核二次校验）。 */
+    fun checkSystemFontDevice() {
+        sysFontCalibratedConfirmed = false
+        sysFontDevice = SystemFont.checkDevice(
+            Build.MANUFACTURER ?: "",
+            Build.MODEL ?: "",
+            Build.DISPLAY ?: "",
+            Build.VERSION.INCREMENTAL ?: "",
+            System.getProperty("os.version") ?: "",
+        )
+    }
+
+    /** root 检查：执行 `su -c id` 看到 uid=0。 */
+    fun checkRoot() {
+        if (sysFontRootChecking) return
+        sysFontRootChecking = true
+        viewModelScope.launch {
+            val rooted = runCatching { SystemFontShell.checkRoot() }.getOrDefault(false)
+            sysFontRoot = rooted
+            sysFontRootChecking = false
+            if (!rooted) flash("没有检测到 root，请先用 RootMyS24 取得 root")
+        }
+    }
+
+    fun setSystemFontScript(script: SystemFontScript, enabled: Boolean) {
+        sysFontScripts = sysFontScripts + (script to enabled)
+        prefs.edit().putBoolean(KEY_SYSFONT_SCRIPT_PREFIX + script.name, enabled).apply()
+    }
+
+    fun enabledSystemFontScripts(): List<SystemFontScript> =
+        SystemFontScript.entries.filter { sysFontScripts[it] == true }
+
+    /** 该语种组合字体在本机的来源文件（LATIN 在 sysFontDir，其余在 FontStore 的 fonts/ 目录）。 */
+    private fun systemFontSourceFile(script: SystemFontScript): File = when (script) {
+        SystemFontScript.LATIN -> File(sysFontDir, script.moduleFileName)
+        SystemFontScript.SC -> store.file(catalog?.face("2001") ?: error("目录还没加载"))
+        SystemFontScript.TC -> store.file(catalog?.face("2010") ?: error("目录还没加载"))
+        SystemFontScript.JP -> store.file(SystemFont.remoteFace(script))
+        SystemFontScript.KR -> store.file(SystemFont.remoteFace(script))
+    }
+
+    /**
+     * 一键换字体：从已取得临时 root 开始，点一下自动顺序跑完
+     * 下载 Inter → 生成模块 → 安装 → 软重启 zygote，全程显示当前步骤，
+     * 出错停在当步并报中文原因。root 本身仍在独立的 RootMyS24 应用里取得，不在本应用内。
+     * 分步按钮（下载 / 生成 / 安装）是同一批内部步骤的手动入口。
+     */
+    fun oneClickChangeFont() {
+        if (sysFontWorking) return
+        val selected = enabledSystemFontScripts()
+        if (selected.isEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont("至少选一个语种") }
+            return
+        }
+        if (!sysFontInstallAllowed()) {
+            val error = when (sysFontDevice?.support) {
+                DeviceSupport.CALIBRATED -> "该固件已定标但未实测，请先勾选风险确认再点一键换字体"
+                DeviceSupport.PORTED -> "该固件是移植载荷，需先在 RootMyS24 设置里开启未经测试的载荷，并勾选风险确认再点一键换字体"
+                DeviceSupport.CANDIDATE -> "该固件需用 S24 Ultra 同构建号载荷跨机型尝试，请先勾选风险确认再点一键换字体"
+                else -> "设备未通过检查，无法一键换字体"
+            }
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont(error) }
+            return
+        }
+        sysFontWorking = true
+        sysFontError = null
+        sysFontVerifyWarning = null
+        sysFontStep = "正在检查 root…"
+        sysFontJob = viewModelScope.launch(Dispatchers.IO) {
+            // 还没测过 root 就先测：没 root 直接停，引导用户去 RootMyS24 取得 root。
+            if (sysFontRoot != true) {
+                val rooted = runCatching { SystemFontShell.checkRoot() }.getOrDefault(false)
+                onMain { sysFontRoot = rooted }
+                if (!rooted) {
+                    autoCancelSystemFont("没有检测到 root，请先用 RootMyS24 取得 root 再点一键换字体")
+                    return@launch
+                }
+            }
+            onMain { sysFontStep = "正在下载 Inter 字体文件…" }
+            downloadSystemFontFilesInternal(selected)?.let { autoCancelSystemFont(it); return@launch }
+            onMain { sysFontStep = "正在生成模块…" }
+            generateSystemFontModuleInternal(selected)?.let { autoCancelSystemFont(it); return@launch }
+            onMain { sysFontStep = "正在安装模块并软重启…" }
+            val installed = installSystemFontModuleInternal()
+            if (installed.error != null) {
+                autoCancelSystemFont(
+                    installed.error,
+                    moduleWritten = installed.moduleWritten,
+                    postVerifyFailed = installed.postVerifyFailed,
+                )
+                return@launch
+            }
+            onMain {
+                sysFontWorking = false
+                sysFontStep = null
+                sysFontProgress = 1f
+                sysFontModuleState = SystemFontModuleState.INSTALLED
+                flash("一键换字体完成，粗体已换成 Inter")
+            }
+        }
+    }
+
+    /**
+     * 失败自动取消（硬规则，决策见 [SystemFont.planCancel]）：
+     * 一键 / 分步流程里任何一步不通过，整个操作自动取消——立刻停止、清理 staging、
+     * 状态复位到未生成，界面只显示失败原因，绝不出现“装了一半卡住”的状态。
+     * [moduleWritten]：本次操作已把模块写到 /data/adb/modules/tokifonts-font
+     * （安装步跑过，无论成败）→ 先删模块目录再报错。
+     * [postVerifyFailed]：模块已装上但装后验证失败 → 自动回滚（删模块 + 重启 zygote）再报错。
+     * 除回滚外不重启 zygote（新字体根本没挂上）。
+     * （在 IO 协程里调用；调用后调用方应立即 return。）
+     */
+    private suspend fun autoCancelSystemFont(
+        error: String,
+        moduleWritten: Boolean = false,
+        postVerifyFailed: Boolean = false,
+    ) {
+        val plan = SystemFont.planCancel(moduleWritten, postVerifyFailed)
+        var extraNote: String? = null
+        var needsReboot = false
+        if (plan.deleteModuleDir) {
+            if (plan.restartZygote) {
+                val outcome = runCatching { SystemFontShell.rollback() }.getOrNull()
+                when {
+                    outcome == null -> extraNote = "自动回滚执行失败，请手动进 KernelSU 管理器关掉「Inter」模块，或执行 adb shell rm -rf /data/adb/modules/tokifonts-font 后重启"
+                    !outcome.moduleRemoved -> extraNote = "自动回滚也没能删掉模块：${outcome.error ?: "未知错误"}，请手动进 KernelSU 管理器关掉「Inter」模块，或执行 adb shell rm -rf /data/adb/modules/tokifonts-font 后重启"
+                    !outcome.zygoteOk -> {
+                        needsReboot = true
+                        extraNote = outcome.error ?: "模块已删，但软重启 zygote 没确认，请重启手机"
+                    }
+                }
+            } else {
+                // 安装步跑过但没完成：删掉可能已写入一半的模块目录，不重启 zygote。
+                runCatching { SystemFontShell.runAsRoot("rm -rf ${SystemFont.MODULE_DIR}") }
+            }
+        }
+        if (plan.clearStaging) {
+            SystemFont.clearStaging(sysFontStagingDir, sysFontZipFile)
+        }
+        onMain {
+            sysFontWorking = false
+            sysFontStep = null
+            sysFontProgress = 0f
+            sysFontModuleState = SystemFontModuleState.NOT_GENERATED
+            sysFontChangeList = emptyList()
+            sysFontXmlValidated = false
+            sysFontFilesVerified = false
+            sysFontSpaceOk = null
+            sysFontVerifyWarning = null
+            sysFontInstallMethod = null
+            if (needsReboot) sysFontNeedsReboot = true
+            sysFontError = listOfNotNull(error, extraNote).joinToString("；")
+        }
+    }
+
+    /** 安装步的结果：[error] 为 null 表示成功；失败时 [moduleWritten] 表示安装步是否已对模块目录动过手，[postVerifyFailed] 表示模块已装上但装后验证失败（须自动回滚）。 */
+    private data class InstallResult(
+        val error: String?,
+        val moduleWritten: Boolean = false,
+        val postVerifyFailed: Boolean = false,
+    )
+
+    /**
+     * 安装放行条件：已实测固件直接放行；待验证固件、移植载荷与跨机型候选只在用户额外确认
+     * 风险后放行；其他情况一律不放行。界面的一键 / 下载 / 生成按钮与 [sysFontInstallBlockers] 共用它。
+     */
+    fun sysFontInstallAllowed(): Boolean =
+        sysFontDevice?.support == DeviceSupport.SUPPORTED ||
+            ((sysFontDevice?.support == DeviceSupport.CALIBRATED ||
+                sysFontDevice?.support == DeviceSupport.PORTED ||
+                sysFontDevice?.support == DeviceSupport.CANDIDATE) &&
+                sysFontCalibratedConfirmed)
+
+    /**
+     * 安装门禁：任一条成立就不能点安装，界面把原因逐条展示。
+     * （staging 完整性用 File.exists 快速判断，5–8 个文件，开销可忽略。）
+     */
+    fun sysFontInstallBlockers(): List<String> = buildList {
+        val device = sysFontDevice
+        when (device?.support) {
+            DeviceSupport.SUPPORTED -> {}
+            DeviceSupport.CALIBRATED -> if (!sysFontCalibratedConfirmed) {
+                add("该固件已定标但未实测，root 可能不成功；确认风险后勾选“我已知晓，仍要继续”才能安装")
+            }
+            DeviceSupport.PORTED -> if (!sysFontCalibratedConfirmed) {
+                add("该固件是移植载荷（未实测），需先在 RootMyS24 设置里开启未经测试的载荷；确认风险后勾选“我已知晓，仍要继续”才能安装")
+            }
+            DeviceSupport.CANDIDATE -> if (!sysFontCalibratedConfirmed) {
+                add("该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号载荷可试（你以前用过这条路子）；确认风险后勾选“我已知晓，仍要继续”才能安装")
+            }
+            else -> add("设备未通过检查" + (device?.reason?.let { "：$it" } ?: ""))
+        }
+        if (sysFontRoot != true) add("没有检测到 root")
+        if (sysFontModuleState != SystemFontModuleState.GENERATED) add("请先生成模块")
+        if (!sysFontXmlValidated) add("fonts.xml 结构校验未通过")
+        if (!sysFontFilesVerified) add("Inter 字体文件未通过校验")
+        if (sysFontChangeList.isEmpty()) add("没有可安装的改动")
+        if (sysFontSpaceOk == false) add("空间不足")
+        if (sysFontModuleState == SystemFontModuleState.GENERATED) {
+            val missing = SystemFont.moduleLayout(enabledSystemFontScripts())
+                .filter { !File(sysFontStagingDir, it).exists() }
+            if (missing.isNotEmpty()) add("模块文件不完整，请重新生成")
+        }
+    }
+
+    /** 下载 Inter 字体文件（分步入口，内部步骤与一键流程共用）。失败时同样自动取消。 */
+    fun downloadSystemFontFiles() {
+        if (sysFontWorking) return
+        val selected = enabledSystemFontScripts()
+        if (selected.isEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont("至少选一个语种") }
+            return
+        }
+        sysFontWorking = true
+        sysFontProgress = 0f
+        sysFontError = null
+        sysFontJob = viewModelScope.launch(Dispatchers.IO) {
+            val error = downloadSystemFontFilesInternal(selected)
+            if (error != null) {
+                autoCancelSystemFont(error)
+            } else {
+                onMain {
+                    sysFontWorking = false
+                    sysFontProgress = 1f
+                    flash("Inter 字体文件已就绪")
+                }
+            }
+        }
+    }
+
+    /**
+     * 下载内部步骤（在 IO 协程里调用，返回 null 表示成功，否则为中文错误）：
+     * 先查剩余空间（JP/KR 各 17MB），再按语种取文件——苹方两档走现有 catalog +
+     * FontStore；Inter 从 assets 复制；Noto / Source Han 走构造的 FontFace +
+     * store.download（主地址 + jsDelivr 备用）。下载后按期望大小 / 文件头 /
+     * SHA-256 校验，失败就报中文错误。已下载且校验通过的文件直接跳过，不重下。
+     */
+    private suspend fun downloadSystemFontFilesInternal(selected: List<SystemFontScript>): String? {
+        val needed = SystemFont.requiredDownloadBytes(selected)
+        val usable = getApplication<Application>().filesDir.usableSpace
+        val enough = SystemFont.hasEnoughSpace(usable, needed)
+        onMain { sysFontSpaceOk = enough }
+        if (!enough) {
+            return "空间不足：下载 Inter 需要约 ${needed / 1024 / 1024}MB 剩余空间，当前剩余约 ${usable / 1024 / 1024}MB，请清理后再试"
+        }
+        return try {
+            selected.forEachIndexed { index, script ->
+                onMain { sysFontProgress = index.toFloat() / selected.size }
+                when (script) {
+                    SystemFontScript.LATIN -> {
+                        val dest = File(sysFontDir, script.moduleFileName)
+                        if (SystemFont.verifyFontFile(dest, script) == null) return@forEachIndexed
+                        getApplication<Application>().assets.open("Inter-Bold.otf").use { input ->
+                            dest.outputStream().use { input.copyTo(it) }
+                        }
+                    }
+                    SystemFontScript.SC, SystemFontScript.TC -> {
+                        val face = catalog?.face(if (script == SystemFontScript.SC) "2001" else "2010")
+                            ?: return "字库目录还没加载，请先回字体页等目录加载完成"
+                        if (status(face.id) !is FaceStatus.Ready) {
+                            store.download(face) { progress -> onMain { sysFontProgress = progress } }
+                            onMain { refreshLocal() }
+                        }
+                    }
+                    SystemFontScript.JP, SystemFontScript.KR -> {
+                        val face = SystemFont.remoteFace(script)
+                        if (status(face.id) !is FaceStatus.Ready) {
+                            store.download(face) { progress -> onMain { sysFontProgress = progress } }
+                            onMain { refreshLocal() }
+                        }
+                    }
+                }
+                val problem = SystemFont.verifyFontFile(systemFontSourceFile(script), script)
+                if (problem != null) return problem
+            }
+            null
+        } catch (error: Throwable) {
+            error.message ?: "下载 Inter 字体失败"
+        }
+    }
+
+    /** 生成模块（分步入口，内部步骤与一键流程共用）。失败时同样自动取消。 */
+    fun generateSystemFontModule() {
+        if (sysFontWorking) return
+        val selected = enabledSystemFontScripts()
+        if (selected.isEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont("至少选一个语种") }
+            return
+        }
+        if (!sysFontInstallAllowed()) {
+            val error = when (sysFontDevice?.support) {
+                DeviceSupport.CALIBRATED -> "该固件已定标但未实测，请先勾选风险确认再生成模块"
+                DeviceSupport.PORTED -> "该固件是移植载荷，需先在 RootMyS24 设置里开启未经测试的载荷，并勾选风险确认再生成模块"
+                DeviceSupport.CANDIDATE -> "该固件需用 S24 Ultra 同构建号载荷跨机型尝试，请先勾选风险确认再生成模块"
+                else -> "设备未通过检查，无法生成模块"
+            }
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont(error) }
+            return
+        }
+        sysFontWorking = true
+        sysFontError = null
+        viewModelScope.launch(Dispatchers.IO) {
+            val error = generateSystemFontModuleInternal(selected)
+            if (error != null) {
+                autoCancelSystemFont(error)
+            } else {
+                onMain {
+                    sysFontWorking = false
+                    flash("模块已生成，可以安装了")
+                }
+            }
+        }
+    }
+
+    /**
+     * 生成内部步骤（在 IO 协程里调用，返回 null 表示成功，否则为中文错误）：
+     * 读设备 /system/etc/fonts.xml（读不到或解析失败直接拒绝）→ 算改动清单 →
+     * 只替换 sans-serif 的 700 条目 → 重解析 + 结构校验（只有预期改动才通过）→
+     * 先校验全部字体文件，再写 staging（module.prop + system/etc/fonts.xml +
+     * 字体文件），同时把原 fonts.xml 备份到模块内与应用私有目录 → 最后复核
+     * staging 清单齐全才算生成成功。
+     */
+    private suspend fun generateSystemFontModuleInternal(selected: List<SystemFontScript>): String? {
+        return try {
+            val deviceXmlFile = File("/system/etc/fonts.xml")
+            if (!deviceXmlFile.exists()) return "读不到设备上的 /system/etc/fonts.xml"
+            val original = deviceXmlFile.readText()
+            if (!SystemFont.isValidFontsXml(original)) return "设备上的 fonts.xml 解析失败，已拒绝安装"
+            val changeList = SystemFont.computeChangeList(original, selected)
+            val rewritten = SystemFont.rewriteFontsXml(original, selected)
+            if (!SystemFont.isValidFontsXml(rewritten)) return "生成的 fonts.xml 解析失败，已拒绝安装"
+            val stagingNames = selected.map { it.moduleFileName }.toSet()
+            val problems = SystemFont.validateRewrite(original, rewritten, selected, stagingNames)
+            if (problems.isNotEmpty()) return "fonts.xml 结构校验未通过：${problems.first()}"
+            for (script in selected) {
+                val problem = SystemFont.verifyFontFile(systemFontSourceFile(script), script)
+                if (problem != null) return "请先下载 Inter 字体文件：$problem"
+            }
+            val staging = sysFontStagingDir
+            staging.deleteRecursively()
+            File(staging, "system/etc").mkdirs()
+            File(staging, "system/fonts").mkdirs()
+            File(staging, "module.prop").writeText(
+                SystemFont.buildModuleProp(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+            )
+            File(staging, "system/etc/fonts.xml").writeText(rewritten)
+            // 原文件双备份：模块内一份（随模块走），应用私有目录一份（删模块后还在）。
+            File(staging, "fonts.xml.original").writeText(original)
+            File(sysFontDir, "fonts.xml.bak").writeText(original)
+            for (script in selected) {
+                val source = systemFontSourceFile(script)
+                source.copyTo(File(staging, "system/fonts/${script.moduleFileName}"), overwrite = true)
+            }
+            val missing = SystemFont.moduleLayout(selected).filter { !File(staging, it).exists() }
+            if (missing.isNotEmpty()) return "模块文件不完整，缺少：${missing.joinToString("、")}"
+            onMain {
+                sysFontChangeList = changeList
+                sysFontXmlValidated = true
+                sysFontFilesVerified = true
+                sysFontModuleState = SystemFontModuleState.GENERATED
+            }
+            null
+        } catch (error: Throwable) {
+            error.message ?: "生成模块失败"
+        }
+    }
+
+    /** 安装模块（分步入口，内部步骤与一键流程共用）。失败时同样自动取消。 */
+    fun installSystemFontModule() {
+        if (sysFontWorking) return
+        val blockers = sysFontInstallBlockers()
+        if (blockers.isNotEmpty()) {
+            sysFontError = blockers.first()
+            return
+        }
+        sysFontWorking = true
+        sysFontError = null
+        sysFontVerifyWarning = null
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = installSystemFontModuleInternal()
+            if (result.error != null) {
+                autoCancelSystemFont(
+                    result.error,
+                    moduleWritten = result.moduleWritten,
+                    postVerifyFailed = result.postVerifyFailed,
+                )
+            } else {
+                onMain {
+                    sysFontWorking = false
+                    sysFontModuleState = SystemFontModuleState.INSTALLED
+                    flash("已安装并软重启，粗体已换成 Inter")
+                }
+            }
+        }
+    }
+
+    /**
+     * 安装内部步骤（调用方须先过 [sysFontInstallBlockers] 门禁）：
+     * 打包 zip → ksud 安装，失败回退复制安装 → 校验模块在位才重启 zygote →
+     * 重启后验证挂载出来的字体文件。
+     * 装后验证失败是硬失败（不再只是警告）：返回 [InstallResult] 标 postVerifyFailed，
+     * 调用方自动回滚（删模块 + 重启 zygote）再报错。
+     */
+    private suspend fun installSystemFontModuleInternal(): InstallResult {
+        return when (val outcome = SystemFontShell.installModule(sysFontStagingDir, sysFontZipFile)) {
+            is InstallOutcome.Failure -> InstallResult(outcome.message, moduleWritten = outcome.moduleWritten)
+            is InstallOutcome.Success -> {
+                onMain { sysFontInstallMethod = outcome.method }
+                val restartError = SystemFontShell.restartZygote()
+                if (restartError != null) return InstallResult(restartError, moduleWritten = true)
+                val selected = enabledSystemFontScripts()
+                val stagingXml = File(sysFontStagingDir, "system/etc/fonts.xml")
+                val warning = SystemFontShell.verifyInstalled(
+                    selected,
+                    expectedFontsXmlBytes = if (stagingXml.exists()) stagingXml.length() else -1,
+                )
+                if (warning != null) {
+                    return InstallResult("装后验证失败：$warning", moduleWritten = true, postVerifyFailed = true)
+                }
+                InstallResult(null)
+            }
+        }
+    }
+
+    /** 回滚：删模块目录 + 重启 zygote，恢复原厂字体。 */
+    fun rollbackSystemFont() {
+        if (sysFontWorking) return
+        sysFontWorking = true
+        sysFontError = null
+        sysFontNeedsReboot = false
+        viewModelScope.launch {
+            val outcome = SystemFontShell.rollback()
+            sysFontWorking = false
+            if (!outcome.moduleRemoved) {
+                sysFontModuleState = SystemFontModuleState.FAILED
+                sysFontError = outcome.error ?: "回滚失败"
+            } else {
+                sysFontModuleState = SystemFontModuleState.NOT_GENERATED
+                sysFontStagingDir.deleteRecursively()
+                sysFontChangeList = emptyList()
+                sysFontXmlValidated = false
+                sysFontFilesVerified = false
+                sysFontInstallMethod = null
+                sysFontVerifyWarning = null
+                if (outcome.zygoteOk) {
+                    flash("已回滚：模块已删除并软重启，系统字体已恢复")
+                } else {
+                    sysFontNeedsReboot = true
+                    sysFontError = outcome.error ?: "模块已删，但软重启没确认，请重启手机"
+                }
+            }
+        }
+    }
+
+    /** 备选：软重启后字体未生效时重启手机（magic mount 未在当前挂载命名空间生效）。 */
+    fun rebootSystemFontPhone() {
+        if (sysFontWorking) return
+        viewModelScope.launch {
+            SystemFontShell.reboot().let { error ->
+                if (error != null) flash(error)
+            }
+        }
+    }
+
     fun flash(text: String) {
         message = text
         messageSeq++
@@ -612,6 +1157,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         private const val KEY_PREVIEW = "preview"
         private const val KEY_PREVIEW_OVERRIDES = "preview_overrides"
         private const val KEY_EXPORTED = "exported"
+        private const val KEY_SYSFONT_SCRIPT_PREFIX = "sysfont_script_"
 
         private fun decodeOverrides(raw: String?): Map<String, String> {
             if (raw.isNullOrBlank()) return emptyMap()
