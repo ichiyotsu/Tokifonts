@@ -51,6 +51,9 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
     val calibrated = device?.support == DeviceSupport.CALIBRATED
     val ported = device?.support == DeviceSupport.PORTED
     val candidate = device?.support == DeviceSupport.CANDIDATE
+    // 跨机型候选的来源行是待验证（已定标）时（如 S9280 DZJ3），文案必须写
+    // “待验证（已定标）载荷”，绝不能写“已实测”；已实测来源行才保持原话。
+    val crossCalibrated = device?.firmware?.crossModel?.entry?.status == FirmwareStatus.CALIBRATED
     // 待验证、移植载荷与跨机型候选同级：都要用户额外勾选风险确认才放行。
     val needsConfirm = calibrated || ported || candidate
     // 一键 / 下载 / 生成共用这个放行条件：已实测直接放行，待验证须用户先勾选风险确认。
@@ -65,7 +68,7 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
     ) {
         item {
             Text(
-                "把系统粗体（700）换成 Inter。只支持三星 S24 系列 / Z Fold6 / Z Flip6，需要 root（由独立的 RootMyS24 应用提供）。模块只做挂载覆盖，不写系统分区，删模块即可恢复原厂字体。",
+                "把系统全部字重的字体换成 Inter：常规（400）用各语种的常规文件，粗体（700）仍可加粗，系统设置里的粗细切换照常可用。只支持三星 S24 系列 / Z Fold6 / Z Flip6，需要 root（由独立的 RootMyS24 应用提供）。模块只做挂载覆盖，不写系统分区，删模块即可恢复原厂字体。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -100,7 +103,11 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
                     if (!installAllowed) {
                         Text(
                             when {
-                                candidate -> "该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号载荷可试（你以前用过这条路子）；确认风险后勾选下方“我已知晓，仍要继续”才能一键换字体。"
+                                candidate -> if (crossCalibrated) {
+                                    "该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号待验证（已定标）载荷可试；确认风险后勾选下方“我已知晓，仍要继续”才能一键换字体。"
+                                } else {
+                                    "该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号载荷可试（你以前用过这条路子）；确认风险后勾选下方“我已知晓，仍要继续”才能一键换字体。"
+                                }
                                 ported -> "该固件是移植载荷（未实测），需先在 RootMyS24 设置里开启未经测试的载荷；确认风险后勾选下方“我已知晓，仍要继续”才能一键换字体。"
                                 calibrated -> "该固件已定标但未实测，root 可能不成功；确认风险后勾选下方“我已知晓，仍要继续”才能一键换字体。"
                                 else -> "当前设备不支持换系统字体，因此不提供一键按钮。"
@@ -144,7 +151,11 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
                             )
                             device.firmware?.crossModel?.let { cross ->
                                 Text(
-                                    "跨机型候选：可用 S24 Ultra 同构建号载荷一试（${cross.entry.firmwareBuild}），你以前用这条路子通过过，需点确认才尝试，不默认走。",
+                                    if (crossCalibrated) {
+                                        "跨机型候选：可用 S24 Ultra 同构建号待验证（已定标）载荷一试（${cross.entry.firmwareBuild}），社区定标、App 内未实测，需点确认才尝试，不默认走。"
+                                    } else {
+                                        "跨机型候选：可用 S24 Ultra 同构建号载荷一试（${cross.entry.firmwareBuild}），你以前用这条路子通过过，需点确认才尝试，不默认走。"
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.tertiary,
                                 )
@@ -176,7 +187,11 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
                                     )
                                     Text(
                                         when {
-                                            candidate -> "我已知晓这是用 S24 Ultra 同构建号载荷跨机型尝试（你以前通过过），仍可能不成功，仍要继续"
+                                            candidate -> if (crossCalibrated) {
+                                                "我已知晓这是用 S24 Ultra 同构建号待验证（已定标）载荷跨机型尝试，仍可能不成功，仍要继续"
+                                            } else {
+                                                "我已知晓这是用 S24 Ultra 同构建号载荷跨机型尝试（你以前通过过），仍可能不成功，仍要继续"
+                                            }
                                             ported -> "我已知晓这是移植载荷（未实测），需在 RootMyS24 设置里开启未经测试的载荷，root 可能不成功，仍要继续"
                                             else -> "我已知晓该固件未实测，root 可能不成功，仍要继续"
                                         },
@@ -246,9 +261,9 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
         item {
             Surface(shape = TokiCardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(TokiSpacing.xl), verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm)) {
-                    Text("Inter（只换粗体 700）", style = MaterialTheme.typography.titleLarge)
+                    Text("Inter（全部字重）", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "每种语言一个文件，按开关选装。拉丁用 Inter Bold（随应用内置），简繁中文用苹方（走字库下载），日文 / 韩文安装时从官方下载。",
+                        "每种语言按字重各一个文件，按开关选装。拉丁用 Inter 各字重（从 Inter 4.1 官方包下载），简繁中文用苹方各字重（走字库下载，只用已下载的本地文件），日文 / 韩文安装时从官方下载。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -416,7 +431,11 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
             item {
                 Text(
                     when {
-                        candidate -> "该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号载荷可试，勾选风险确认后才能安装。"
+                        candidate -> if (crossCalibrated) {
+                            "该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号待验证（已定标）载荷可试，勾选风险确认后才能安装。"
+                        } else {
+                            "该固件不在 S24+ 支持列表里，但有 S24 Ultra 同构建号载荷可试，勾选风险确认后才能安装。"
+                        }
                         ported -> "该固件是移植载荷（未实测），需先在 RootMyS24 设置里开启未经测试的载荷，勾选风险确认后才能安装。"
                         calibrated -> "该固件已定标但未实测，勾选风险确认后才能安装。"
                         else -> "当前设备不支持换系统字体，因此不提供安装按钮。"
@@ -451,12 +470,12 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("会把模块装到 /data/adb/modules/tokifonts-font，并软重启 zygote。模块只做挂载覆盖，不写系统分区，随时可以一键回滚。")
-                    Text("这次会改的字体（原系统文件 → Inter）：", fontWeight = FontWeight.Bold)
+                    Text("这次会改的字体（字重 · 原系统文件 → Inter）：", fontWeight = FontWeight.Bold)
                     if (vm.sysFontChangeList.isEmpty()) {
                         Text("没有可安装的改动")
                     } else {
                         vm.sysFontChangeList.forEach { change ->
-                            Text("${change.oldFile ?: "新增条目"} → ${change.newFile}（${change.script.displayName}）")
+                            Text("${change.weight} · ${change.oldFile ?: "新增条目"} → ${change.newFile}（${change.script.displayName}）")
                         }
                     }
                     Text(

@@ -63,11 +63,13 @@ fun TokiDropdownMenu(
  *
  * 间距按 8dp 一档定死（M3 实测值，见下）：
  * - 菜单容器自身上下各留 8dp（M3 `DropdownMenuVerticalPadding`），
- *   所以选项自身左右留 8dp、上下留 0——最上面/最下面的选项被选中时，
- *   胶囊离菜单边框上 / 左 / 右（或下 / 左 / 右）正好都是 8dp，三边等距；
- *   之前选项上下也留 8dp，胶囊离菜单上下边是 16dp、左右是 8dp，不等距。
- * - 选项之间不留缝（M3 菜单标准密度），每项仍是 M3 的 48dp 最小高；
- *   只去上下内边距，一只 5 个字重的菜单就矮了 80dp。
+ *   所以选项自身左右留 8dp；上下各留 2dp——相邻两项同时选中时，
+ *   胶囊之间留出 4dp 缝，不会上下贴合连成一片（2026-11-24 修：
+ *   之前上下留 0，细体/常规同时选中时两个胶囊连成一个）。
+ *   代价是端部胶囊离菜单边框上下是 10dp（8dp 容器 + 2dp 项距），
+ *   比三边等距的 8dp 多 2dp，缝隙优先，可以接受。
+ * - 每项仍是 M3 的 48dp 最小高，外加上下 2dp 项距，整项 52dp；
+ *   未选中项没有背景，项距只表现为行间距。
  * - 菜单宽度随内容：M3 菜单以 IntrinsicSize.Max 度量，取最长
  *   选项的文本宽，不设固定宽。点选项只切换选中态、不关菜单（多选用）。
  */
@@ -91,7 +93,7 @@ fun TokiSelectableMenuItem(
         },
         onClick = onClick,
         modifier = Modifier
-            .padding(horizontal = TokiSpacing.sm)
+            .padding(horizontal = TokiSpacing.sm, vertical = 2.dp)
             .then(if (selected) Modifier.clip(CircleShape).background(scheme.inverseSurface) else Modifier),
     )
 }

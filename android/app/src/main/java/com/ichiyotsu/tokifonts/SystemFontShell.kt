@@ -119,8 +119,17 @@ object SystemFontShell {
      * 安装后验证（尽力而为）：模块目录还在，且挂载出来的每个新字体文件大小
      * 都对得上（读的是 /system/fonts 下经过挂载的路径）；[expectedFontsXmlBytes] > 0 时
      * 也核对 /system/etc/fonts.xml 的大小。返回 null 表示通过，否则为中文问题。
+     *
+     * [weights] 是设备 sans-serif 家族实际有的字重：每个语种按
+     * [SystemFontScript.fileForWeight] 映射到实际文件逐个核对（同一文件只验一次，
+     * 如 HK 的 700/800/900 都映射到 600 档，只验一次）；不传时只验 700 档
+     * （旧的单文件入口兼容）。文件名可能含空格，stat 路径加引号。
      */
-    suspend fun verifyInstalled(selected: List<SystemFontScript>, expectedFontsXmlBytes: Long = -1): String? {
+    suspend fun verifyInstalled(
+        selected: List<SystemFontScript>,
+        weights: Set<Int> = setOf(700),
+        expectedFontsXmlBytes: Long = -1,
+    ): String? {
         if (!isModuleInstalled()) return "安装后找不到模块目录"
         if (expectedFontsXmlBytes > 0) {
             val xml = runAsRoot("stat -c %s /system/etc/fonts.xml")
@@ -132,13 +141,16 @@ object SystemFontShell {
             }
         }
         for (script in selected) {
-            val path = "/system/fonts/${script.moduleFileName}"
-            val result = runAsRoot("stat -c %s $path")
-            if (!result.ok) return "无法验证 $path（读不到，挂载可能没生效）"
-            val size = result.stdout.trim().toLongOrNull()
-            if (size == null) return "无法验证 $path（读到的大小不是数字）"
-            if (size != script.expectedBytes) {
-                return "$path 大小不对（$size，期望 ${script.expectedBytes}），新字体可能没挂上"
+            val files = weights.map { script.fileForWeight(it) }.distinctBy { it.fileName }
+            for (file in files) {
+                val path = "/system/fonts/${file.fileName}"
+                val result = runAsRoot("stat -c %s \"$path\"")
+                if (!result.ok) return "无法验证 $path（读不到，挂载可能没生效）"
+                val size = result.stdout.trim().toLongOrNull()
+                if (size == null) return "无法验证 $path（读到的大小不是数字）"
+                if (size != file.expectedBytes) {
+                    return "$path 大小不对（$size，期望 ${file.expectedBytes}），新字体可能没挂上"
+                }
             }
         }
         return null

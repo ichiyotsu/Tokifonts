@@ -4,7 +4,11 @@ package com.ichiyotsu.tokifonts
 
 import android.graphics.Typeface as AndroidTypeface
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,16 +52,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -315,39 +323,93 @@ fun FontDetail(vm: FontsViewModel, familyId: String, padding: PaddingValues) {
 }
 
 /**
- * 图一的预览卡：只展示，不可编辑——预设参考、输入框、说明文字都已去掉；
- * 预览文字仍读全局文字（或这套字体之前单独改过的），右下角 × 只在改过时
- * 出现，点一下恢复为全局预览文字。
+ * 详情页预览卡：点文字进入编辑态，写回即是这套字体单独的预览文字
+ * （[FontsViewModel.setFamilyPreview]，与全局预览同一套持久化）；
+ * 右下角 × 已按用户决定整个删掉——清空输入框再提交就是恢复全局预览的路子，
+ * 框永远不会变空白。查看态仍是原来的字体 / 字号 / 行高渲染。
  */
 @Composable
 private fun PreviewEditor(vm: FontsViewModel, familyId: String, typeface: AndroidTypeface?, size: Int) {
-    Box(Modifier.fillMaxWidth()) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = vm.previewFor(familyId),
-                modifier = Modifier.fillMaxWidth().padding(TokiSpacing.xl),
-                style = TextStyle(
-                    fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
-                    fontSize = size.sp,
-                    lineHeight = (size * 1.35f).sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
+    val current = vm.previewFor(familyId)
+    var editing by remember(familyId) { mutableStateOf(false) }
+    var draft by remember(familyId) { mutableStateOf(current) }
+    // 外面改了预览文字（比如设置页改了全局预览）时跟上；正在编辑不碰草稿。
+    LaunchedEffect(current) {
+        if (!editing) draft = current
+    }
+    val focusRequester = remember(familyId) { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    // 失焦提交的守卫：onFocusChanged 进组合时先发一次初始未聚焦态，
+    // 必须确认之前聚焦过才算“失焦”；editing 翻转时复位。
+    var hadFocus by remember(editing) { mutableStateOf(false) }
+    val textStyle = TextStyle(
+        fontFamily = typeface?.let { ComposeFontFamily(ComposeTypeface(it)) },
+        fontSize = size.sp,
+        lineHeight = (size * 1.35f).sp,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    // 提交是幂等的：按完成和失焦可能连着触发两次，第二次 editing 已是 false 直接返回。
+    fun commit() {
+        if (!editing) return
+        editing = false
+        if (draft.isBlank()) vm.clearFamilyPreview(familyId) else vm.setFamilyPreview(familyId, draft)
+    }
+    LaunchedEffect(editing) {
+        if (editing) focusRequester.requestFocus()
+    }
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (editing) {
+            BasicTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.fillMaxWidth().padding(TokiSpacing.xl)
+                    .focusRequester(focusRequester)
+                    .onFocusChanged {
+                        if (it.hasFocus) hadFocus = true
+                        else if (hadFocus) {
+                            hadFocus = false
+                            commit()
+                        }
+                    },
+                textStyle = textStyle,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit(); focusManager.clearFocus() }),
+                minLines = 3,
+                maxLines = 8,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    if (draft.isEmpty()) {
+                        Text(
+                            "清空后恢复全局预览",
+                            style = textStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        )
+                    }
+                    innerTextField()
+                },
             )
-        }
-        if (vm.hasFamilyPreview(familyId)) {
-            TokiLongPressLabel("恢复为全局预览文字") {
-                IconButton(
-                    onClick = { vm.clearFamilyPreview(familyId) },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp)
-                        .semantics { contentDescription = "恢复为全局预览文字" },
-                ) { Symbol("close", size = 20.dp) }
+        } else {
+            Column(
+                Modifier.fillMaxWidth().padding(TokiSpacing.xl).clickable { draft = current; editing = true },
+                verticalArrangement = Arrangement.spacedBy(TokiSpacing.sm),
+            ) {
+                Text(
+                    text = current,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = textStyle,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // “可点编辑”的提示，顺带说明 × 删掉之后恢复全局预览的办法：清空再提交。
+                Text(
+                    "轻点文字可编辑，清空后恢复全局预览",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

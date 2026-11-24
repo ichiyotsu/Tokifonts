@@ -66,14 +66,16 @@ data class FirmwareMatchResult(
 
 /**
  * 跨机型候选（机主验证过的路子）：国行 S24+（SM-S9260）用 S24 Ultra（SM-S9280）
- * 同一条 6.1.145 内核线上同构建号（如 DZF2/DZG1）的已实测载荷。
+ * 同一条 6.1.145 内核线上同构建号（如 DZF2/DZG1/DZJ3）的载荷。
+ * 已实测的行优先；没有已实测行时，待验证（已定标）的行也可以作候选，
+ * 但必须按待验证对待（文案写“待验证（已定标）载荷”，绝不能写“已实测”）。
  * 只是一条候选建议，不改变主匹配等级；门禁里与待验证同级处理（琥珀提示 +
  * 需额外明确确认才尝试，不默认走）。
  */
 data class CrossModelCandidate(
     val fromModel: String,
     val toModelLabel: String,
-    /** S9280 那条已实测行。 */
+    /** S9280 那条行（已实测优先，否则为待验证已定标行）。 */
     val entry: FirmwareEntry,
     /** 命中的构建号后缀，如 "DZF2"。 */
     val suffix: String,
@@ -150,6 +152,11 @@ object FirmwareSupport {
         FirmwareEntry("SM-S928B", "SM-S928B 欧版 One UI 8.0", "S928BXXS4CZA1", "6.1.128", "GhostLock", FirmwareStatus.CALIBRATED),
         FirmwareEntry("SM-S928B", "SM-S928B 欧版 One UI 7.0", "S928BXXU4BYD9", "6.1.99", "GhostLock", FirmwareStatus.CALIBRATED),
         FirmwareEntry("SM-S928B", "SM-S928B 欧版 One UI 6.1", "S928BXXU4AXK5", "6.1.75", "GhostLock", FirmwareStatus.CALIBRATED),
+        FirmwareEntry(
+            model = "SM-S9280", modelLabel = "SM-S9280 国行", firmwareBuild = "S9280ZCS6DZJ3",
+            kernel = "6.1.145", engine = "98260 UAF", status = FirmwareStatus.CALIBRATED,
+            note = "社区定标（PR #44），手动 staging 真机 root 成功；App 内待验证",
+        ),
     )
 
     val TESTED: List<FirmwareEntry> get() = ENTRIES.filter { it.status == FirmwareStatus.TESTED }
@@ -222,8 +229,10 @@ object FirmwareSupport {
     }
 
     /**
-     * 跨机型候选：只在 SM-S9260 上出现——本机固件构建号的后缀（如 DZF2/DZG1）
-     * 在 S9280 的 6.1.145 已实测行里存在，且本机内核也在 6.1.x 线上。
+     * 跨机型候选：只在 SM-S9260 上出现——本机固件构建号的后缀（如 DZF2/DZG1/DZJ3）
+     * 在 S9280 的 6.1.145 行里存在，且本机内核也在 6.1.x 线上。
+     * 已实测的行优先于待验证（已定标）的行；后者作候选时，调用方必须按待验证
+     * 对待（文案写“待验证（已定标）载荷”，绝不能写“已实测”）。
      * 后缀取固件构建号最后 4 位（如 "S9280ZCS6DZF2" → "DZF2"）。
      */
     fun crossModelCandidate(model: String, display: String, incremental: String, kernelVersion: String): CrossModelCandidate? {
@@ -231,8 +240,14 @@ object FirmwareSupport {
         val kernel = SystemFont.parseKernelVersion(kernelVersion) ?: return null
         if (kernel.first != 6 || kernel.second != 1) return null
         val haystack = "${display.trim().uppercase()} ${incremental.trim().uppercase()}"
+        // 已实测优先，再找待验证（已定标）行：例如 DZJ3 只有 S9280 的定标行，
+        // S9260 上仍可作候选一试，但绝不能按已实测放行。
         val row = ENTRIES.firstOrNull { entry ->
             entry.model == "SM-S9280" && entry.status == FirmwareStatus.TESTED &&
+                SystemFont.parseKernelVersion(entry.kernel) == (6 to 1) &&
+                entry.firmwareBuild.takeLast(4).uppercase() in haystack
+        } ?: ENTRIES.firstOrNull { entry ->
+            entry.model == "SM-S9280" && entry.status == FirmwareStatus.CALIBRATED &&
                 SystemFont.parseKernelVersion(entry.kernel) == (6 to 1) &&
                 entry.firmwareBuild.takeLast(4).uppercase() in haystack
         } ?: return null

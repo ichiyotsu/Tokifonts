@@ -17,10 +17,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import java.io.File
+import java.io.IOException
+import java.util.zip.ZipFile
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -434,15 +438,20 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 next[face.id] = FaceStatus.Ready(file)
             }
         }
-        // 程序构造的 JP/KR 两档不在 catalog 里，上面扫不到：只要本地文件存在且
-        // 通过大小 + 文件头 + SHA-256 全套校验，就标 Ready，免得每次点下载都重下 17MB。
-        for (script in listOf(SystemFontScript.JP, SystemFontScript.KR)) {
-            val face = SystemFont.remoteFace(script)
-            val existing = next[face.id]
-            if (existing is FaceStatus.Downloading || existing is FaceStatus.Queued) continue
-            val file = store.file(face)
-            if (SystemFont.verifyFontFile(file, script) == null) {
-                next[face.id] = FaceStatus.Ready(file)
+        // 程序构造的 JP/KR/LATIN 各字重 face 不在 catalog 里，上面扫不到：只要本地文件存在且
+        // 通过大小 + 文件头 + SHA-256 全套校验（无 SHA 的档只按大小 + 文件头），就标 Ready，
+        // 免得每次点下载都重下。LATIN 的文件在 sysFontDir，其余在 FontStore 的 fonts/ 目录。
+        for (script in SystemFontScript.entries) {
+            for (face in SystemFont.remoteFaces(script)) {
+                val existing = next[face.id]
+                if (existing is FaceStatus.Downloading || existing is FaceStatus.Queued) continue
+                val file = when (script) {
+                    SystemFontScript.LATIN -> File(sysFontDir, face.fileName)
+                    else -> store.file(face)
+                }
+                if (SystemFont.verifyFontFile(file, script, face.weight) == null) {
+                    next[face.id] = FaceStatus.Ready(file)
+                }
             }
         }
         downloads = next
@@ -700,12 +709,158 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         SystemFontScript.entries.filter { sysFontScripts[it] == true }
 
     /** 该语种组合字体在本机的来源文件（LATIN 在 sysFontDir，其余在 FontStore 的 fonts/ 目录）。 */
-    private fun systemFontSourceFile(script: SystemFontScript): File = when (script) {
-        SystemFontScript.LATIN -> File(sysFontDir, script.moduleFileName)
-        SystemFontScript.SC -> store.file(catalog?.face("2001") ?: error("目录还没加载"))
-        SystemFontScript.TC -> store.file(catalog?.face("2010") ?: error("目录还没加载"))
-        SystemFontScript.JP -> store.file(SystemFont.remoteFace(script))
-        SystemFontScript.KR -> store.file(SystemFont.remoteFace(script))
+    private fun systemFontSourceFile(script: SystemFontScript, weight: Int): File = when (script) {
+        SystemFontScript.LATIN -> File(sysFontDir, script.fileForWeight(weight).fileName)
+        SystemFontScript.SC, SystemFontScript.TC -> {
+            val parsed = catalog ?: error("字库目录还没加载，请先回字体页等目录加载完成")
+            val face = parsed.systemFontFace(script, weight)
+                ?: error("字库目录里没有${script.displayName}${weight} 的字体")
+            store.file(face)
+        }
+        SystemFontScript.JP, SystemFontScript.KR -> store.file(SystemFont.remoteFace(script, weight))
+    }
+
+    /** 设备 sans-serif 实际字重（读 /system/etc/fonts.xml；读不到或为空就按全量算）。结果缓存，本次会话内设备 fonts.xml 不会变。 */
+    private var cachedDeviceWeights: Set<Int>? = null
+
+    private fun deviceFontWeights(): Set<Int> {
+        cachedDeviceWeights?.let { return it }
+        val weights = runCatching {
+            SystemFont.sansSerifWeights(File("/system/etc/fonts.xml").readText())
+        }.getOrNull()?.takeIf { it.isNotEmpty() }?.toSet() ?: SystemFont.ALL_WEIGHTS
+        cachedDeviceWeights = weights
+        return weights
+    }
+
+    /** 本次安装某语种实际要用的文件（设备字重 → 最近档，去重），与 [SystemFont.moduleLayout] 的按字重版同一口径。 */
+    private fun neededWeightFiles(script: SystemFontScript, weights: Set<Int>): List<ScriptWeightFile> =
+        weights.map { script.fileForWeight(it) }.distinctBy { it.fileName }
+
+    /**
+     * 拉丁文：只下载一次 Inter 4.1 zip，解出本次需要的各档 OTF。
+     * FontStore.download 一次只解一个 innerName、且下完就删 .part，所以 9 档不能走它
+     * （会下 9 次 zip）；这里直接用 HttpURLConnection 按 face.urls() 顺序试地址
+     * （raw 主地址注定 404，靠 extraUrls 里的 release 直链），落到
+     * sysFontDir/Inter-4.1.zip，已下好且大小对得上的直接复用。
+     * 全部需要的档解出并校验通过后删掉 zip；失败时删掉 zip（下次重试重新下载），
+     * 避免损坏的包被反复复用。返回 null 表示成功，否则为中文错误。
+     * （在 IO 协程里调用；取消时掐断连接并删掉 .part。）
+     */
+    private suspend fun downloadLatinZip(needed: List<ScriptWeightFile>): String? {
+        val missing = needed.filter {
+            SystemFont.verifyFontFile(File(sysFontDir, it.fileName), SystemFontScript.LATIN, it.weight) != null
+        }
+        if (missing.isEmpty()) return null
+        val zipFile = File(sysFontDir, SystemFont.LATIN_ZIP_FILE)
+        val zipPart = File(sysFontDir, "${SystemFont.LATIN_ZIP_FILE}.part")
+        return try {
+            if (!zipFile.exists() || zipFile.length() != SystemFont.LATIN_ZIP_BYTES) {
+                zipFile.delete()
+                val face = SystemFont.remoteFace(SystemFontScript.LATIN, 700)
+                var lastError: String? = null
+                var downloaded = false
+                for (url in face.urls()) {
+                    try {
+                        downloadUrlToFile(url, zipPart)
+                        if (zipPart.length() != SystemFont.LATIN_ZIP_BYTES) {
+                            throw IOException("下载不完整（${zipPart.length()}/${SystemFont.LATIN_ZIP_BYTES}）")
+                        }
+                        if (!zipPart.renameTo(zipFile)) {
+                            zipPart.copyTo(zipFile, overwrite = true)
+                            zipPart.delete()
+                        }
+                        downloaded = true
+                        break
+                    } catch (cancelled: CancellationException) {
+                        zipPart.delete()
+                        throw cancelled
+                    } catch (error: Throwable) {
+                        zipPart.delete()
+                        lastError = error.message ?: "下载失败"
+                    }
+                }
+                if (!downloaded) return "Inter 字体包下载失败：${lastError ?: "未知错误"}"
+            }
+            val entriesOk = runCatching {
+                ZipFile(zipFile).use { zip ->
+                    missing.all { zip.getEntry(SystemFont.LATIN_ZIP_INNER_DIR + it.fileName) != null }
+                }
+            }.getOrDefault(false)
+            if (!entriesOk) {
+                zipFile.delete()
+                return "Inter 字体包损坏或不完整，已删除，请重试下载"
+            }
+            try {
+                ZipFile(zipFile).use { zip ->
+                    for (wanted in missing) {
+                        val entry = zip.getEntry(SystemFont.LATIN_ZIP_INNER_DIR + wanted.fileName)
+                            ?: return "Inter 字体包里没有 ${wanted.fileName}，请重试下载"
+                        val dest = File(sysFontDir, wanted.fileName)
+                        zip.getInputStream(entry).use { input ->
+                            dest.outputStream().use { input.copyTo(it) }
+                        }
+                    }
+                }
+            } catch (error: Throwable) {
+                zipFile.delete()
+                return "Inter 字体包解压失败：${error.message ?: "未知错误"}，已删除损坏的安装包，请重试"
+            }
+            for (wanted in missing) {
+                val problem = SystemFont.verifyFontFile(File(sysFontDir, wanted.fileName), SystemFontScript.LATIN, wanted.weight)
+                if (problem != null) return problem
+            }
+            zipFile.delete()
+            null
+        } catch (cancelled: CancellationException) {
+            zipPart.delete()
+            throw cancelled
+        } catch (error: Throwable) {
+            error.message ?: "下载 Inter 字体失败"
+        }
+    }
+
+    /**
+     * 用 HttpURLConnection 下一个文件（跟随重定向；读循环里响应取消）。
+     * 调用方须在 IO 线程；进度通过 [sysFontProgress] 回主线程。
+     */
+    private suspend fun downloadUrlToFile(url: String, dest: File) {
+        val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        connection.connectTimeout = 30_000
+        connection.readTimeout = 120_000
+        connection.instanceFollowRedirects = true
+        connection.setRequestProperty("User-Agent", "tokifonts/${BuildConfig.VERSION_NAME}")
+        try {
+            connection.connect()
+            if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                error("HTTP ${connection.responseCode}")
+            }
+            dest.parentFile?.mkdirs()
+            connection.inputStream.use { input ->
+                dest.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var read = 0L
+                    var last = 0f
+                    val total = connection.contentLengthLong
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        output.write(buffer, 0, n)
+                        read += n
+                        if (total > 0) {
+                            val progress = (read.toFloat() / total).coerceIn(0f, 1f)
+                            if (progress - last >= 0.02f || progress >= 1f) {
+                                last = progress
+                                onMain { sysFontProgress = progress }
+                            }
+                        }
+                    }
+                    if (total > 0 && read != total) throw IOException("下载不完整（$read/$total）")
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     /**
@@ -764,7 +919,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 sysFontStep = null
                 sysFontProgress = 1f
                 sysFontModuleState = SystemFontModuleState.INSTALLED
-                flash("一键换字体完成，粗体已换成 Inter")
+                flash("一键换字体完成，系统全部字重已换成 Inter")
             }
         }
     }
@@ -842,7 +997,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
 
     /**
      * 安装门禁：任一条成立就不能点安装，界面把原因逐条展示。
-     * （staging 完整性用 File.exists 快速判断，5–8 个文件，开销可忽略。）
+     * （staging 完整性用 File.exists 快速判断，几十个文件，开销可忽略。）
      */
     fun sysFontInstallBlockers(): List<String> = buildList {
         val device = sysFontDevice
@@ -866,7 +1021,8 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         if (sysFontChangeList.isEmpty()) add("没有可安装的改动")
         if (sysFontSpaceOk == false) add("空间不足")
         if (sysFontModuleState == SystemFontModuleState.GENERATED) {
-            val missing = SystemFont.moduleLayout(enabledSystemFontScripts())
+            val weights = cachedDeviceWeights ?: SystemFont.ALL_WEIGHTS
+            val missing = SystemFont.moduleLayout(enabledSystemFontScripts(), weights)
                 .filter { !File(sysFontStagingDir, it).exists() }
             if (missing.isNotEmpty()) add("模块文件不完整，请重新生成")
         }
@@ -899,13 +1055,15 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
 
     /**
      * 下载内部步骤（在 IO 协程里调用，返回 null 表示成功，否则为中文错误）：
-     * 先查剩余空间（JP/KR 各 17MB），再按语种取文件——苹方两档走现有 catalog +
-     * FontStore；Inter 从 assets 复制；Noto / Source Han 走构造的 FontFace +
-     * store.download（主地址 + jsDelivr 备用）。下载后按期望大小 / 文件头 /
-     * SHA-256 校验，失败就报中文错误。已下载且校验通过的文件直接跳过，不重下。
+     * 先按设备实际字重算剩余空间，再按语种取文件——苹方各档走现有 catalog +
+     * FontStore（只用用户已下载的本地副本，缺了就现下）；拉丁文只下载一次
+     * Inter 4.1 zip、解出本次需要的各档；Noto / Source Han 按字重走构造的
+     * FontFace + store.download（主地址 + jsDelivr 备用）。下载后按期望大小 /
+     * 文件头 / SHA-256 校验，失败就报中文错误。已下载且校验通过的文件直接跳过，不重下。
      */
     private suspend fun downloadSystemFontFilesInternal(selected: List<SystemFontScript>): String? {
-        val needed = SystemFont.requiredDownloadBytes(selected)
+        val weights = deviceFontWeights()
+        val needed = SystemFont.requiredDownloadBytes(selected, weights)
         val usable = getApplication<Application>().filesDir.usableSpace
         val enough = SystemFont.hasEnoughSpace(usable, needed)
         onMain { sysFontSpaceOk = enough }
@@ -915,32 +1073,36 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         return try {
             selected.forEachIndexed { index, script ->
                 onMain { sysFontProgress = index.toFloat() / selected.size }
+                val files = neededWeightFiles(script, weights)
                 when (script) {
                     SystemFontScript.LATIN -> {
-                        val dest = File(sysFontDir, script.moduleFileName)
-                        if (SystemFont.verifyFontFile(dest, script) == null) return@forEachIndexed
-                        getApplication<Application>().assets.open("Inter-Bold.otf").use { input ->
-                            dest.outputStream().use { input.copyTo(it) }
-                        }
+                        downloadLatinZip(files)?.let { return it }
                     }
                     SystemFontScript.SC, SystemFontScript.TC -> {
-                        val face = catalog?.face(if (script == SystemFontScript.SC) "2001" else "2010")
-                            ?: return "字库目录还没加载，请先回字体页等目录加载完成"
-                        if (status(face.id) !is FaceStatus.Ready) {
-                            store.download(face) { progress -> onMain { sysFontProgress = progress } }
-                            onMain { refreshLocal() }
+                        val parsed = catalog ?: return "字库目录还没加载，请先回字体页等目录加载完成"
+                        for (wanted in files) {
+                            val face = parsed.systemFontFace(script, wanted.weight)
+                                ?: return "字库目录里没有${script.displayName}${wanted.weight} 的字体"
+                            if (status(face.id) !is FaceStatus.Ready) {
+                                store.download(face) { progress -> onMain { sysFontProgress = progress } }
+                                onMain { refreshLocal() }
+                            }
                         }
                     }
                     SystemFontScript.JP, SystemFontScript.KR -> {
-                        val face = SystemFont.remoteFace(script)
-                        if (status(face.id) !is FaceStatus.Ready) {
-                            store.download(face) { progress -> onMain { sysFontProgress = progress } }
-                            onMain { refreshLocal() }
+                        for (wanted in files) {
+                            val face = SystemFont.remoteFace(script, wanted.weight)
+                            if (status(face.id) !is FaceStatus.Ready) {
+                                store.download(face) { progress -> onMain { sysFontProgress = progress } }
+                                onMain { refreshLocal() }
+                            }
                         }
                     }
                 }
-                val problem = SystemFont.verifyFontFile(systemFontSourceFile(script), script)
-                if (problem != null) return problem
+                for (wanted in files) {
+                    val problem = SystemFont.verifyFontFile(systemFontSourceFile(script, wanted.weight), script, wanted.weight)
+                    if (problem != null) return problem
+                }
             }
             null
         } catch (error: Throwable) {
@@ -984,10 +1146,11 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     /**
      * 生成内部步骤（在 IO 协程里调用，返回 null 表示成功，否则为中文错误）：
      * 读设备 /system/etc/fonts.xml（读不到或解析失败直接拒绝）→ 算改动清单 →
-     * 只替换 sans-serif 的 700 条目 → 重解析 + 结构校验（只有预期改动才通过）→
-     * 先校验全部字体文件，再写 staging（module.prop + system/etc/fonts.xml +
-     * 字体文件），同时把原 fonts.xml 备份到模块内与应用私有目录 → 最后复核
-     * staging 清单齐全才算生成成功。
+     * 按设备实际字重替换 sans-serif 各字重条目 → 重解析 + 结构校验（只有预期改动才通过，
+     * staging 清单按设备字重传）→ 先校验全部字重的字体文件，再写 staging
+     * （module.prop + system/etc/fonts.xml + 各字重字体文件），同时把原 fonts.xml
+     * 备份到模块内与应用私有目录 → 最后复核 staging 清单齐全才算生成成功。
+     * 斜体条目没有斜体替换文件，原样保留，不进清单、也不拦安装。
      */
     private suspend fun generateSystemFontModuleInternal(selected: List<SystemFontScript>): String? {
         return try {
@@ -995,15 +1158,21 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             if (!deviceXmlFile.exists()) return "读不到设备上的 /system/etc/fonts.xml"
             val original = deviceXmlFile.readText()
             if (!SystemFont.isValidFontsXml(original)) return "设备上的 fonts.xml 解析失败，已拒绝安装"
+            val weights = SystemFont.sansSerifWeights(original).ifEmpty { SystemFont.ALL_WEIGHTS }.toSet()
+            cachedDeviceWeights = weights
             val changeList = SystemFont.computeChangeList(original, selected)
             val rewritten = SystemFont.rewriteFontsXml(original, selected)
             if (!SystemFont.isValidFontsXml(rewritten)) return "生成的 fonts.xml 解析失败，已拒绝安装"
-            val stagingNames = selected.map { it.moduleFileName }.toSet()
+            val stagingNames = selected.flatMap { script ->
+                neededWeightFiles(script, weights).map { it.fileName }
+            }.toSet()
             val problems = SystemFont.validateRewrite(original, rewritten, selected, stagingNames)
             if (problems.isNotEmpty()) return "fonts.xml 结构校验未通过：${problems.first()}"
             for (script in selected) {
-                val problem = SystemFont.verifyFontFile(systemFontSourceFile(script), script)
-                if (problem != null) return "请先下载 Inter 字体文件：$problem"
+                for (wanted in neededWeightFiles(script, weights)) {
+                    val problem = SystemFont.verifyFontFile(systemFontSourceFile(script, wanted.weight), script, wanted.weight)
+                    if (problem != null) return "请先下载 Inter 字体文件：$problem"
+                }
             }
             val staging = sysFontStagingDir
             staging.deleteRecursively()
@@ -1017,10 +1186,12 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             File(staging, "fonts.xml.original").writeText(original)
             File(sysFontDir, "fonts.xml.bak").writeText(original)
             for (script in selected) {
-                val source = systemFontSourceFile(script)
-                source.copyTo(File(staging, "system/fonts/${script.moduleFileName}"), overwrite = true)
+                for (wanted in neededWeightFiles(script, weights)) {
+                    val source = systemFontSourceFile(script, wanted.weight)
+                    source.copyTo(File(staging, "system/fonts/${wanted.fileName}"), overwrite = true)
+                }
             }
-            val missing = SystemFont.moduleLayout(selected).filter { !File(staging, it).exists() }
+            val missing = SystemFont.moduleLayout(selected, weights).filter { !File(staging, it).exists() }
             if (missing.isNotEmpty()) return "模块文件不完整，缺少：${missing.joinToString("、")}"
             onMain {
                 sysFontChangeList = changeList
@@ -1057,7 +1228,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 onMain {
                     sysFontWorking = false
                     sysFontModuleState = SystemFontModuleState.INSTALLED
-                    flash("已安装并软重启，粗体已换成 Inter")
+                    flash("已安装并软重启，系统全部字重已换成 Inter")
                 }
             }
         }
@@ -1081,6 +1252,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 val stagingXml = File(sysFontStagingDir, "system/etc/fonts.xml")
                 val warning = SystemFontShell.verifyInstalled(
                     selected,
+                    weights = deviceFontWeights(),
                     expectedFontsXmlBytes = if (stagingXml.exists()) stagingXml.length() else -1,
                 )
                 if (warning != null) {

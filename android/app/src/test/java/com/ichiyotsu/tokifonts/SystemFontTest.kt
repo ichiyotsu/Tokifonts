@@ -31,14 +31,29 @@ class SystemFontTest {
         </familyset>
     """.trimIndent()
 
-    @Test fun rewriteOnlyChangesSansSerif700Entries() {
+    @Test fun rewriteReplacesEveryWeightPerScript() {
         val rewritten = SystemFont.rewriteFontsXml(sampleXml, listOf(SystemFontScript.LATIN, SystemFontScript.SC))
         val fonts = SystemFont.sansSerifFonts(rewritten)
-        // 只有一个 700 条目：第一个语种占它，第二个语种追加。
+        // 每档字重各占一条：第一个语种替换原条目，第二个语种追加在该字重组内。
         assertEquals(
-            listOf(400 to "SamsungOneUI-Regular.ttf", 500 to "SamsungOneUI-Medium.ttf", 700 to "Inter-Bold.otf", 700 to "2001.ttf"),
+            listOf(
+                400 to "Inter-Regular.otf", 400 to "2006 PingFang Regular.ttf",
+                500 to "Inter-Medium.otf", 500 to "2005 PingFang Medium.ttf",
+                700 to "Inter-Bold.otf", 700 to "2001 PingFang Bold.ttf",
+            ),
             fonts,
         )
+    }
+
+    @Test fun rewriteMaps400ToRegularNotBold() {
+        // 默认映射：400 映射常规文件，绝不能映射到 Bold；700 仍映射粗体文件。
+        val rewritten = SystemFont.rewriteFontsXml(sampleXml, listOf(SystemFontScript.LATIN, SystemFontScript.JP))
+        val fonts = SystemFont.sansSerifFonts(rewritten)
+        assertEquals("Inter-Regular.otf", fonts.first { it.first == 400 }.second)
+        assertEquals("NotoSansCJKjp-Regular.otf", fonts.filter { it.first == 400 }[1].second)
+        assertEquals("Inter-Bold.otf", fonts.first { it.first == 700 }.second)
+        assertEquals("NotoSansCJKjp-Bold.otf", fonts.filter { it.first == 700 }[1].second)
+        assertTrue(fonts.none { it.second == "Inter-Bold.otf" && it.first != 700 })
     }
 
     @Test fun rewriteKeepsOtherFamiliesUntouched() {
@@ -49,11 +64,31 @@ class SystemFontTest {
         assertTrue(rewritten.contains("sans-serif-cjk"))
     }
 
-    @Test fun rewriteKeepsNonBoldEntriesUntouched() {
-        val rewritten = SystemFont.rewriteFontsXml(sampleXml, listOf(SystemFontScript.JP))
-        assertTrue(rewritten.contains("SamsungOneUI-Regular.ttf"))
-        assertTrue(rewritten.contains("SamsungOneUI-Medium.ttf"))
-        assertTrue(rewritten.contains("sans-serif\" to=\"sans-serif\""))
+    /** 斜体条目没有斜体替换文件，原样保留（已知缺口），且不影响结构校验。 */
+    private val sampleXmlWithItalic = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <familyset version="23">
+            <family name="sans-serif">
+                <font weight="400" style="normal">SamsungOneUI-Regular.ttf</font>
+                <font weight="400" style="italic">SamsungOneUI-Italic.ttf</font>
+                <font weight="700" style="normal">SamsungOneUI-Bold.ttf</font>
+            </family>
+            <alias name="sans-serif" to="sans-serif" weight="400" />
+        </familyset>
+    """.trimIndent()
+
+    @Test fun rewriteKeepsItalicEntriesUntouched() {
+        val rewritten = SystemFont.rewriteFontsXml(sampleXmlWithItalic, listOf(SystemFontScript.LATIN))
+        assertTrue(rewritten.contains("SamsungOneUI-Italic.ttf"))
+        assertEquals(
+            listOf(400 to "Inter-Regular.otf", 400 to "SamsungOneUI-Italic.ttf", 700 to "Inter-Bold.otf"),
+            SystemFont.sansSerifFonts(rewritten),
+        )
+        val problems = SystemFont.validateRewrite(
+            sampleXmlWithItalic, rewritten,
+            listOf(SystemFontScript.LATIN), setOf("Inter-Regular.otf", "Inter-Bold.otf"),
+        )
+        assertTrue(problems.isEmpty())
     }
 
     @Test fun rewrittenXmlParsesAgain() {
@@ -62,11 +97,15 @@ class SystemFontTest {
             listOf(SystemFontScript.LATIN, SystemFontScript.SC, SystemFontScript.TC, SystemFontScript.JP, SystemFontScript.KR),
         )
         assertTrue(SystemFont.isValidFontsXml(rewritten))
-        // 五档全开：原 1 个 700 条目被替换，其余 4 个追加。
-        assertEquals(7, SystemFont.sansSerifFonts(rewritten).size)
+        // 五档全开 × 三档字重：每档字重 5 条，共 15 条。
+        assertEquals(15, SystemFont.sansSerifFonts(rewritten).size)
         assertEquals(
-            listOf("Inter-Bold.otf", "2001.ttf", "2010.ttf", "NotoSansCJKjp-Bold.otf", "SourceHanSansK-Bold.otf"),
+            listOf("Inter-Bold.otf", "2001 PingFang Bold.ttf", "2010 PingFangHK-Semibold.ttf", "NotoSansCJKjp-Bold.otf", "SourceHanSansK-Bold.otf"),
             SystemFont.sansSerifFonts(rewritten).filter { it.first == 700 }.map { it.second },
+        )
+        assertEquals(
+            listOf("Inter-Regular.otf", "2006 PingFang Regular.ttf", "2009 PingFangHK-Regular.ttf", "NotoSansCJKjp-Regular.otf", "SourceHanSansK-Regular.otf"),
+            SystemFont.sansSerifFonts(rewritten).filter { it.first == 400 }.map { it.second },
         )
     }
 
@@ -96,7 +135,30 @@ class SystemFontTest {
         assertEquals(
             listOf(
                 "module.prop", "system/etc/fonts.xml", "fonts.xml.original",
-                "system/fonts/Inter-Bold.otf", "system/fonts/NotoSansCJKjp-Bold.otf",
+                "system/fonts/Inter-Thin.otf", "system/fonts/Inter-ExtraLight.otf",
+                "system/fonts/Inter-Light.otf", "system/fonts/Inter-Regular.otf",
+                "system/fonts/Inter-Medium.otf", "system/fonts/Inter-SemiBold.otf",
+                "system/fonts/Inter-Bold.otf", "system/fonts/Inter-ExtraBold.otf",
+                "system/fonts/Inter-Black.otf",
+                "system/fonts/NotoSansCJKjp-Thin.otf", "system/fonts/NotoSansCJKjp-Light.otf",
+                "system/fonts/NotoSansCJKjp-DemiLight.otf", "system/fonts/NotoSansCJKjp-Regular.otf",
+                "system/fonts/NotoSansCJKjp-Medium.otf", "system/fonts/NotoSansCJKjp-Bold.otf",
+                "system/fonts/NotoSansCJKjp-Black.otf",
+            ),
+            layout,
+        )
+    }
+
+    @Test fun moduleLayoutForDeviceWeightsOnlyListsNeededFiles() {
+        // 设备只有 400/700 两档时，清单只列这两档映射到的文件（HK 700 回退到 600 档）。
+        val layout = SystemFont.moduleLayout(
+            listOf(SystemFontScript.TC),
+            setOf(400, 700),
+        )
+        assertEquals(
+            listOf(
+                "module.prop", "system/etc/fonts.xml", "fonts.xml.original",
+                "system/fonts/2009 PingFangHK-Regular.ttf", "system/fonts/2010 PingFangHK-Semibold.ttf",
             ),
             layout,
         )
@@ -179,9 +241,9 @@ class SystemFontTest {
     // ---- 固件自动匹配（FirmwareSupport 表优先，内核二次校验）----
 
     @Test fun firmwareTableHasAllRows() {
-        assertEquals(30, FirmwareSupport.ENTRIES.size)
+        assertEquals(31, FirmwareSupport.ENTRIES.size)
         assertEquals(20, FirmwareSupport.TESTED.size)
-        assertEquals(10, FirmwareSupport.CALIBRATED.size)
+        assertEquals(11, FirmwareSupport.CALIBRATED.size)
         assertTrue(FirmwareSupport.TABLE_SOURCE.contains("root-my-s24 README v3.7.0-alpha.1"))
     }
 
@@ -577,17 +639,25 @@ class SystemFontTest {
             sampleXml,
             listOf(SystemFontScript.LATIN, SystemFontScript.SC),
         )
-        assertEquals(2, changes.size)
-        assertEquals("SamsungOneUI-Bold.ttf", changes[0].oldFile)
-        assertEquals("Inter-Bold.otf", changes[0].newFile)
+        // 三档字重 × 两语种：每档 1 条替换 + 1 条追加，共 6 条。
+        assertEquals(6, changes.size)
+        assertEquals("SamsungOneUI-Regular.ttf", changes[0].oldFile)
+        assertEquals("Inter-Regular.otf", changes[0].newFile)
+        assertEquals(400, changes[0].weight)
         assertFalse(changes[0].added)
         assertNull(changes[1].oldFile)
-        assertEquals("2001.ttf", changes[1].newFile)
+        assertEquals("2006 PingFang Regular.ttf", changes[1].newFile)
+        assertEquals(400, changes[1].weight)
         assertTrue(changes[1].added)
         assertEquals(SystemFontScript.SC, changes[1].script)
+        assertEquals("SamsungOneUI-Bold.ttf", changes[4].oldFile)
+        assertEquals("Inter-Bold.otf", changes[4].newFile)
+        assertEquals(700, changes[4].weight)
+        assertEquals("2001 PingFang Bold.ttf", changes[5].newFile)
+        assertTrue(changes[5].added)
     }
 
-    @Test fun changeListAllScriptsOneReplaceFourAdded() {
+    @Test fun changeListAllScriptsThreeWeightsFifteenChanges() {
         val changes = SystemFont.computeChangeList(
             sampleXml,
             listOf(
@@ -595,19 +665,42 @@ class SystemFontTest {
                 SystemFontScript.JP, SystemFontScript.KR,
             ),
         )
-        assertEquals(5, changes.size)
+        assertEquals(15, changes.size)
+        // 每档字重：首条替换，其余 4 条追加。
+        assertEquals(listOf(400, 400, 400, 400, 400, 500, 500, 500, 500, 500, 700, 700, 700, 700, 700), changes.map { it.weight })
         assertFalse(changes[0].added)
         assertTrue(changes.subList(1, 5).all { it.added })
+        assertFalse(changes[5].added)
+        assertTrue(changes.subList(6, 10).all { it.added })
+        assertFalse(changes[10].added)
+        assertTrue(changes.subList(11, 15).all { it.added })
         assertEquals(
-            listOf("Inter-Bold.otf", "2001.ttf", "2010.ttf", "NotoSansCJKjp-Bold.otf", "SourceHanSansK-Bold.otf"),
-            changes.map { it.newFile },
+            listOf("Inter-Bold.otf", "2001 PingFang Bold.ttf", "2010 PingFangHK-Semibold.ttf", "NotoSansCJKjp-Bold.otf", "SourceHanSansK-Bold.otf"),
+            changes.filter { it.weight == 700 }.map { it.newFile },
+        )
+    }
+
+    @Test fun changeListGroupsByWeight() {
+        val changes = SystemFont.computeChangeList(
+            sampleXml,
+            listOf(SystemFontScript.LATIN, SystemFontScript.SC),
+        )
+        val groups = SystemFont.groupChangesByWeight(changes)
+        assertEquals(listOf(400, 500, 700), groups.map { it.weight })
+        assertTrue(groups.all { it.changes.size == 2 })
+        assertEquals(
+            listOf("Inter-Regular.otf", "2006 PingFang Regular.ttf"),
+            groups[0].changes.map { it.newFile },
         )
     }
 
     private fun rewrittenTwoScripts() =
         SystemFont.rewriteFontsXml(sampleXml, listOf(SystemFontScript.LATIN, SystemFontScript.SC))
 
-    private val stagingTwoScripts = setOf("Inter-Bold.otf", "2001.ttf")
+    private val stagingTwoScripts = setOf(
+        "Inter-Regular.otf", "Inter-Medium.otf", "Inter-Bold.otf",
+        "2006 PingFang Regular.ttf", "2005 PingFang Medium.ttf", "2001 PingFang Bold.ttf",
+    )
 
     @Test fun validateRewriteAcceptsCleanRewrite() {
         val problems = SystemFont.validateRewrite(
@@ -617,8 +710,8 @@ class SystemFontTest {
         assertTrue(problems.isEmpty())
     }
 
-    @Test fun validateRewriteRejectsNonBoldChange() {
-        val tampered = rewrittenTwoScripts().replace("SamsungOneUI-Regular.ttf", "Evil.ttf")
+    @Test fun validateRewriteRejectsTamperedMediumWeight() {
+        val tampered = rewrittenTwoScripts().replace("Inter-Medium.otf", "Evil.otf")
         val problems = SystemFont.validateRewrite(
             sampleXml, tampered,
             listOf(SystemFontScript.LATIN, SystemFontScript.SC), stagingTwoScripts,
@@ -636,7 +729,17 @@ class SystemFontTest {
     }
 
     @Test fun validateRewriteRejectsEmptiedEntry() {
-        val tampered = rewrittenTwoScripts().replace("SamsungOneUI-Medium.ttf", "")
+        val tampered = rewrittenTwoScripts().replace("Inter-Medium.otf", "")
+        val problems = SystemFont.validateRewrite(
+            sampleXml, tampered,
+            listOf(SystemFontScript.LATIN, SystemFontScript.SC), stagingTwoScripts,
+        )
+        assertTrue(problems.isNotEmpty())
+    }
+
+    @Test fun validateRewriteRejectsLeftoverSamsungFile() {
+        // 常规字重条目里不许留三星原厂文件：把 400 档换回三星原文件也必须拒绝。
+        val tampered = rewrittenTwoScripts().replace("Inter-Regular.otf", "SamsungOneUI-Regular.ttf")
         val problems = SystemFont.validateRewrite(
             sampleXml, tampered,
             listOf(SystemFontScript.LATIN, SystemFontScript.SC), stagingTwoScripts,
@@ -708,11 +811,239 @@ class SystemFontTest {
         }
     }
 
-    @Test fun requiredDownloadBytesCoversJpKrWithMargin() {
+    @Test fun requiredDownloadBytesCoversAllWeightsWithMargin() {
+        // JP 7 档 + KR 7 档全量：(115,614,852 + 115,502,372) × 2 + 16MB。
         val needed = SystemFont.requiredDownloadBytes(listOf(SystemFontScript.JP, SystemFontScript.KR))
-        assertEquals((17_032_620L + 16_959_020L) * 2 + 16L * 1024 * 1024, needed)
+        assertEquals(479_011_664L, needed)
         assertTrue(SystemFont.hasEnoughSpace(needed, needed))
         assertFalse(SystemFont.hasEnoughSpace(needed - 1, needed))
-        assertEquals(16L * 1024 * 1024, SystemFont.requiredDownloadBytes(listOf(SystemFontScript.LATIN)))
+        // LATIN 只有 Inter 4.1 zip 一个下载物：33,707,794 × 2 + 16MB。
+        assertEquals(84_192_804L, SystemFont.requiredDownloadBytes(listOf(SystemFontScript.LATIN)))
+        // 苹方只用本地副本，不计下载量。
+        assertEquals(16L * 1024 * 1024, SystemFont.requiredDownloadBytes(listOf(SystemFontScript.SC)))
+    }
+
+    @Test fun requiredDownloadBytesForDeviceWeightsIsSmaller() {
+        // 设备只有 400/700 两档时，JP/KR 各只下 2 个文件（去重后），比全量小得多。
+        val needed = SystemFont.requiredDownloadBytes(
+            listOf(SystemFontScript.JP, SystemFontScript.KR),
+            setOf(400, 700),
+        )
+        assertEquals(150_746_824L, needed)
+        assertTrue(needed < SystemFont.requiredDownloadBytes(listOf(SystemFontScript.JP, SystemFontScript.KR)))
+        // 两档设备字重映射到同一文件时只算一次：JP 600 回退到 700 档，只下一个 Bold。
+        val jpFallback = SystemFont.requiredDownloadBytes(listOf(SystemFontScript.JP), setOf(600, 700))
+        assertEquals(17_032_620L * 2 + 16L * 1024 * 1024, jpFallback)
+    }
+
+    @Test fun requiredDownloadBytesAllScriptsAllWeights() {
+        // 五语种全开全量：(zip 33,707,794 + JP 115,614,852 + KR 115,502,372) × 2 + 16MB。
+        val needed = SystemFont.requiredDownloadBytes(SystemFontScript.entries)
+        assertEquals(546_427_252L, needed)
+    }
+
+    // ---- S9260 DZJ3 跨机型候选（S9280 DZJ3 待验证定标行）----
+
+    @Test fun s9260Dzj3CrossModelCandidateIsCalibrated() {
+        // S9260 国行 DZJ3：S9260 行里没有，移植载荷 S24 行里也没有 DZJ3，
+        // 但 S9280 有同构建号 DZJ3 的待验证（已定标）行 → 候选，不走移植载荷表。
+        val check = SystemFont.checkDevice(
+            "samsung", "SM-S9260",
+            "UP1A.231005.007.S9260ZCS6DZJ3", "S9260ZCS6DZJ3", "6.1.145-android14-11",
+        )
+        assertEquals(DeviceSupport.CANDIDATE, check.support)
+        assertEquals(FirmwareMatchKind.MODEL_ONLY, check.firmware?.kind)
+        assertNull(check.firmware?.ported)
+        val cross = check.firmware?.crossModel
+        assertEquals("SM-S9260", cross?.fromModel)
+        assertEquals("S24 Ultra", cross?.toModelLabel)
+        assertEquals("DZJ3", cross?.suffix)
+        assertEquals("S9280ZCS6DZJ3", cross?.entry?.firmwareBuild)
+        assertEquals(FirmwareStatus.CALIBRATED, cross?.entry?.status)
+        assertEquals("98260 UAF", cross?.entry?.engine)
+        assertTrue(check.reason.contains("待验证（已定标）载荷"))
+        assertFalse(check.reason.contains("已实测载荷"))
+    }
+
+    @Test fun s9280Dzj3ExactCalibrated() {
+        val check = SystemFont.checkDevice(
+            "samsung", "SM-S9280",
+            "UP1A.231005.007.S9280ZCS6DZJ3", "S9280ZCS6DZJ3", "6.1.145-android14-11",
+        )
+        assertEquals(DeviceSupport.CALIBRATED, check.support)
+        assertEquals(FirmwareMatchKind.EXACT_CALIBRATED, check.firmware?.kind)
+        assertEquals("S9280ZCS6DZJ3", check.firmware?.entry?.firmwareBuild)
+        assertEquals("98260 UAF", check.firmware?.entry?.engine)
+        assertTrue(check.reason.contains("未实测"))
+    }
+
+    @Test fun crossModelCandidatePrefersTestedOverCalibrated() {
+        // DZF2 在 S9280 有已实测行：候选必须取已实测行，不取待验证行。
+        val dzf2 = SystemFont.checkDevice(
+            "samsung", "SM-S9260",
+            "UP1A.231005.007.S9260ZCS6DZF2", "S9260ZCS6DZF2", "6.1.145-android14-11",
+        )
+        assertEquals(FirmwareStatus.TESTED, dzf2.firmware?.crossModel?.entry?.status)
+        assertEquals("S9280ZCS6DZF2", dzf2.firmware?.crossModel?.entry?.firmwareBuild)
+        assertEquals("GhostLock", dzf2.firmware?.crossModel?.entry?.engine)
+        // DZH3 同理：已实测行优先。
+        val dzh3 = SystemFont.checkDevice(
+            "samsung", "SM-S9260",
+            "UP1A.231005.007.S9260ZCS6DZH3", "S9260ZCS6DZH3", "6.1.145-android14-11",
+        )
+        assertEquals(DeviceSupport.CANDIDATE, dzh3.support)
+        assertEquals(FirmwareStatus.TESTED, dzh3.firmware?.crossModel?.entry?.status)
+        assertTrue(dzh3.reason.contains("已实测载荷"))
+    }
+
+    // ---- 全字重映射（最近字重回退：距离相同取更粗档）----
+
+    @Test fun latinFileForWeightIsExactForAllWeights() {
+        for (weight in listOf(100, 200, 300, 400, 500, 600, 700, 800, 900)) {
+            assertEquals(weight, SystemFontScript.LATIN.fileForWeight(weight).weight)
+        }
+        assertEquals("Inter-Regular.otf", SystemFontScript.LATIN.fileForWeight(400).fileName)
+        assertEquals("Inter-Bold.otf", SystemFontScript.LATIN.fileForWeight(700).fileName)
+        assertEquals(9, SystemFontScript.LATIN.weightFiles.size)
+    }
+
+    @Test fun pingFangFileForWeightFallsBackToNearest() {
+        // SC：100 → 200；600 距 500/700 相等 → 取更粗的 700；900 → 800。
+        assertEquals(200, SystemFontScript.SC.fileForWeight(100).weight)
+        assertEquals("2002", SystemFontScript.SC.fileForWeight(100).catalogFaceId)
+        assertEquals(700, SystemFontScript.SC.fileForWeight(600).weight)
+        assertEquals(800, SystemFontScript.SC.fileForWeight(900).weight)
+        assertEquals(400, SystemFontScript.SC.fileForWeight(400).weight)
+        assertEquals("2006", SystemFontScript.SC.fileForWeight(400).catalogFaceId)
+        // HK：700/800/900 都没有 → 最近的 600（库里最粗档）；350 → 300/400 相等 → 取 400。
+        assertEquals(600, SystemFontScript.TC.fileForWeight(700).weight)
+        assertEquals(600, SystemFontScript.TC.fileForWeight(800).weight)
+        assertEquals(600, SystemFontScript.TC.fileForWeight(900).weight)
+        assertEquals("2010", SystemFontScript.TC.fileForWeight(700).catalogFaceId)
+        assertEquals(400, SystemFontScript.TC.fileForWeight(350).weight)
+    }
+
+    @Test fun notoAndSourceHanFileForWeightFallsBackToNearest() {
+        // JP：200 距 100/300 相等 → 取 300；600 距 500/700 相等 → 取 700；
+        // 800 距 700/900 相等 → 取 900；350 是 DemiLight 精确档。
+        assertEquals(300, SystemFontScript.JP.fileForWeight(200).weight)
+        assertEquals(700, SystemFontScript.JP.fileForWeight(600).weight)
+        assertEquals(900, SystemFontScript.JP.fileForWeight(800).weight)
+        assertEquals(350, SystemFontScript.JP.fileForWeight(350).weight)
+        assertEquals("NotoSansCJKjp-DemiLight.otf", SystemFontScript.JP.fileForWeight(350).fileName)
+        // KR：100 → 200；600 距 500/700 相等 → 取 700；900 → 800；
+        // 350 是 Normal 精确档（Normal 是 350，不是 400）。
+        assertEquals(200, SystemFontScript.KR.fileForWeight(100).weight)
+        assertEquals(700, SystemFontScript.KR.fileForWeight(600).weight)
+        assertEquals(800, SystemFontScript.KR.fileForWeight(900).weight)
+        assertEquals(350, SystemFontScript.KR.fileForWeight(350).weight)
+        assertEquals("SourceHanSansK-Normal.otf", SystemFontScript.KR.fileForWeight(350).fileName)
+        assertEquals(400, SystemFontScript.KR.fileForWeight(400).weight)
+        assertEquals("SourceHanSansK-Regular.otf", SystemFontScript.KR.fileForWeight(400).fileName)
+    }
+
+    // ---- 按字重的远程下载 face ----
+
+    @Test fun remoteFacesJpCoverAllSevenWeights() {
+        val faces = SystemFont.remoteFaces(SystemFontScript.JP)
+        assertEquals(listOf(100, 300, 350, 400, 500, 700, 900), faces.map { it.weight })
+        assertEquals("NotoSansCJKjp-Regular.otf", faces.first { it.weight == 400 }.fileName)
+        assertEquals(16_467_736L, faces.first { it.weight == 400 }.bytes)
+        assertEquals("notofonts/noto-cjk", faces.first().repo)
+        assertEquals("main", faces.first().ref)
+        assertTrue(faces.all { it.urls().size == 2 })
+        assertEquals(
+            "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
+            faces.first { it.weight == 400 }.urls()[1],
+        )
+        // 700 档与旧的单档入口完全一致。
+        val bold = SystemFont.remoteFace(SystemFontScript.JP)
+        assertEquals("NotoSansCJKjp-Bold.otf", bold.fileName)
+        assertEquals(17_032_620L, bold.bytes)
+    }
+
+    @Test fun remoteFacesKrCoverAllSevenWeights() {
+        val faces = SystemFont.remoteFaces(SystemFontScript.KR)
+        assertEquals(listOf(200, 300, 350, 400, 500, 700, 800), faces.map { it.weight })
+        assertEquals("SourceHanSansK-Normal.otf", faces.first { it.weight == 350 }.fileName)
+        assertEquals("SourceHanSansK-Regular.otf", faces.first { it.weight == 400 }.fileName)
+        assertEquals("adobe-fonts/source-han-sans", faces.first().repo)
+        assertEquals("release", faces.first().ref)
+        assertTrue(faces.all { it.urls().size == 2 })
+        assertEquals(
+            "https://cdn.jsdelivr.net/gh/adobe-fonts/source-han-sans@release/OTF/Korean/SourceHanSansK-Bold.otf",
+            faces.first { it.weight == 700 }.urls()[1],
+        )
+    }
+
+    @Test fun latinZipFacesShareOneReleaseZip() {
+        val faces = SystemFont.remoteFaces(SystemFontScript.LATIN)
+        assertEquals(9, faces.size)
+        assertTrue(faces.all { it.format == "zip" })
+        assertTrue(faces.all { it.bytes == SystemFont.LATIN_ZIP_BYTES })
+        assertEquals("https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip", faces.first().extraUrls.first())
+        assertEquals("extras/otf/Inter-Regular.otf", faces.first { it.weight == 400 }.innerName)
+        assertEquals("extras/otf/Inter-Bold.otf", faces.first { it.weight == 700 }.innerName)
+        // 700 档仍是内置的 Inter-Bold.otf（字节与 SHA 与 4.1 包内一致）。
+        assertEquals("Inter-Bold.otf", SystemFont.remoteFace(SystemFontScript.LATIN).fileName)
+    }
+
+    @Test fun modulePropDescriptionMentionsAllWeights() {
+        val prop = SystemFont.buildModuleProp("0.1.7", 8)
+        assertTrue(prop.contains("全部字重"))
+        assertTrue(prop.contains("常规 400"))
+        assertTrue(prop.contains("粗体 700"))
+    }
+
+    @Test fun sansSerifWeightsReadFromXml() {
+        assertEquals(listOf(400, 500, 700), SystemFont.sansSerifWeights(sampleXml))
+        assertEquals(listOf(400, 700), SystemFont.sansSerifWeights(sampleXmlWithItalic))
+    }
+
+    @Test fun verifyFontFileChecksPerWeightSize() {
+        val dir = Files.createTempDirectory("sysfont-verify").toFile()
+        try {
+            // 400 档文件按 700 档校验会报大小不对；按 400 档校验（只有文件头 + 大小，
+            // Regular 有 SHA-256，这里用错内容凑不出 SHA，所以只断言大小口径不同）。
+            val fake = File(dir, "Inter-Regular.otf")
+            fake.writeBytes(ByteArray(609_600) { 0 })
+            val wrongWeight = SystemFont.verifyFontFile(fake, SystemFontScript.LATIN, 700)
+            assertTrue(wrongWeight != null && wrongWeight.contains("大小不对"))
+            val missing = SystemFont.verifyFontFile(File(dir, "nope.otf"), SystemFontScript.LATIN, 400)
+            assertTrue(missing != null && missing.contains("不存在"))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun buildModuleZipRoundTripsMultiWeightFiles() {
+        val staging = Files.createTempDirectory("sysfont-staging-multi").toFile()
+        try {
+            File(staging, "module.prop").writeText("id=tokifonts-font\n")
+            File(staging, "system/etc/fonts.xml").apply { parentFile.mkdirs() }.writeText("<familyset/>")
+            File(staging, "system/fonts/Inter-Regular.otf").apply { parentFile.mkdirs() }.writeText("fake-regular")
+            File(staging, "system/fonts/Inter-Bold.otf").writeText("fake-bold")
+            File(staging, "system/fonts/2006 PingFang Regular.ttf").writeText("fake-pingfang")
+            val zip = File(staging.parentFile, "tokifonts-font-multi.zip")
+            try {
+                SystemFont.buildModuleZip(staging, zip)
+                val entries = mutableSetOf<String>()
+                ZipFile(zip).use { z ->
+                    z.entries().asSequence().forEach { entries.add(it.name) }
+                }
+                assertEquals(
+                    setOf(
+                        "module.prop", "system/etc/fonts.xml",
+                        "system/fonts/Inter-Regular.otf", "system/fonts/Inter-Bold.otf",
+                        "system/fonts/2006 PingFang Regular.ttf",
+                    ),
+                    entries,
+                )
+            } finally {
+                zip.delete()
+            }
+        } finally {
+            staging.deleteRecursively()
+        }
     }
 }

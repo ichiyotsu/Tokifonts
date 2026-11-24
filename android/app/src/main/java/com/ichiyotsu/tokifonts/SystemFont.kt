@@ -13,6 +13,7 @@ import javax.xml.transform.OutputKeys
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
+import kotlin.math.abs
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import org.w3c.dom.Node
@@ -23,58 +24,148 @@ import org.w3c.dom.Node
  * 锁定决策：
  * - 只做 KSU magic mount（bind 覆盖），绝不写 /system 或任何系统分区；
  *   回滚 = 删 /data/adb/modules/tokifonts-font + 重启 zygote（或重启手机）。
- * - 组合字体 = Bold（700）only，每语种一个文件；“组合” = 字体文件 +
+ * - 组合字体 = 全字重覆盖，每语种按字重一个文件；“组合” = 字体文件 +
  *   设备上生成的 fonts.xml，不是合成一个 TTF。
- * - 生成规则：解析设备原 fonts.xml，只替换 sans-serif 系列 family 里
- *   weight=700 的 <font> 条目为所选语种的组合字体文件，其他条目原样保留；
+ * - 生成规则：解析设备原 fonts.xml，把 sans-serif 系列 family 里每一条
+ *   常规（normal）字重条目，按所选语种顺序换成对应字重的组合字体文件；
+ *   系统默认字重 400 映射各语种的常规文件（不是粗体），粗体仍在 700，
+ *   通过系统设置里的粗细切换可用；其他 family、别名、斜体条目原样保留；
  *   生成后必须重新解析验证，解析失败则拒绝安装。
+ * - 最近字重回退：某语种没有设备字重对应的文件时，映射到最近的可用字重，
+ *   距离相同取更粗的一档（见 [SystemFontScript.fileForWeight]）。
+ *   斜体（italic）条目没有斜体替换文件，原样保留——这是已知缺口：
+ *   斜体文字仍会走三星原厂字体，见 [SystemFont.rewriteFontsXml]。
+ * - 可变字体说明：内置 res/font/inter.ttf 是 Inter 可变字体（wght 100–900），
+ *   但 Android 15 起可变字体配置在 font_fallback.xml（supportedAxes），
+ *   不在 fonts.xml 里；本模块只改写 fonts.xml，且三星 One UI 的
+ *   fonts.xml 解析是否认 variationSettings 没有实测证据，所以拉丁文
+ *   按静态字重文件做（Inter 4.1 官方包 extras/otf，各字重与内置
+ *   Inter-Bold.otf 同一版本，字节与 SHA-256 已逐个核对）。
  */
-enum class SystemFontScript(
-    val displayName: String,
+data class ScriptWeightFile(
+    /** 字重，如 400。 */
+    val weight: Int,
     /** 模块内 / 设备 fonts.xml 里引用的文件名。 */
-    val moduleFileName: String,
+    val fileName: String,
     /** 期望字节数（下载/复制后校验）。 */
     val expectedBytes: Long,
-    /** 期望 SHA-256（小写 hex；苹方两档无公开校验值，留空表示只按字节数 + 文件头校验）。 */
+    /** 期望 SHA-256（小写 hex；没有公开校验值时留空，只按字节数 + 文件头校验，与苹方旧做法一致）。 */
+    val expectedSha256: String = "",
+    /** 苹方：catalog.json 里的 face id（如 "2001"）；其他语种为 null。 */
+    val catalogFaceId: String? = null,
+)
+
+enum class SystemFontScript(
+    val displayName: String,
+    /**
+     * 700（粗体）档的文件名：旧的单文件入口（[SystemFont.moduleLayout]、
+     * [SystemFont.remoteFace]、[SystemFont.verifyFontFile] 的默认档）仍以它为准，
+     * 供尚未改到按字重取文件的调用方兼容；全字重逻辑一律走 [weightFiles]。
+     */
+    val moduleFileName: String,
+    /** 700 档期望字节数（见 [moduleFileName]）。 */
+    val expectedBytes: Long,
+    /** 700 档期望 SHA-256（见 [moduleFileName]）。 */
     val expectedSha256: String,
     val sourceNote: String,
     val defaultEnabled: Boolean = true,
+    /** 该语种全部可用字重的文件表（按字重升序）。 */
+    val weightFiles: List<ScriptWeightFile>,
 ) {
     LATIN(
-        displayName = "拉丁（Inter Bold）",
+        displayName = "拉丁（Inter）",
         moduleFileName = "Inter-Bold.otf",
         expectedBytes = 631_880L,
         expectedSha256 = "9fc6261e817d0b1b2bf1953d8799bb1c837d11aeebbf83ae352e7b4d6de6425d",
-        sourceNote = "应用 assets 内置（OFL 允许再分发），安装时直接取用",
+        sourceNote = "Inter 4.1 官方包（extras/otf），9 档字重；700 档随应用内置，其余 8 档安装时从官方包下载",
+        weightFiles = listOf(
+            ScriptWeightFile(100, "Inter-Thin.otf", 580_244L, "cac20f7a0c98f45770b098f3eea4bbf5ca020f91602ae119342198dfca14107c"),
+            ScriptWeightFile(200, "Inter-ExtraLight.otf", 593_100L, "09c80155d69174316313b9b81eabacea453aa76817f8fd4be9c3c263034b67f9"),
+            ScriptWeightFile(300, "Inter-Light.otf", 612_020L, "0817fd071377740a8e1cba673baf2c726ef5e5c4e6e0962c6e5bdc096329586d"),
+            ScriptWeightFile(400, "Inter-Regular.otf", 609_600L, "d4f2b9e148059a15f014cb0f0b8fea8cd11bfa447dd483bedf1b0adc0e2ba799"),
+            ScriptWeightFile(500, "Inter-Medium.otf", 627_988L, "6c222ed2c3660524dd0c14fb745e00fee65c5361ab28f60fba6730bf4e648763"),
+            ScriptWeightFile(600, "Inter-SemiBold.otf", 629_912L, "0a4d30778fa2dc239368d90fd854b88b27e7ede737450da72686a90eca66f02c"),
+            ScriptWeightFile(700, "Inter-Bold.otf", 631_880L, "9fc6261e817d0b1b2bf1953d8799bb1c837d11aeebbf83ae352e7b4d6de6425d"),
+            ScriptWeightFile(800, "Inter-ExtraBold.otf", 633_580L, "db2643a54b9c2492e99cd70f73702906d1677aedde969f63bffd4cbc3789ad6d"),
+            ScriptWeightFile(900, "Inter-Black.otf", 626_660L, "da79284ab25b9630e62d967d84fe1c3a1766fa2d7eb39314849ceb3b0759c362"),
+        ),
     ),
     SC(
-        displayName = "简体中文（苹方 Bold）",
+        displayName = "简体中文（苹方）",
         moduleFileName = "2001.ttf",
         expectedBytes = 10_923_212L,
         expectedSha256 = "",
-        sourceNote = "走现有 catalog + FontStore 下载（face 2001）；苹方为 Apple internal-use-only，绝不打包进仓库",
+        sourceNote = "走现有 catalog + FontStore 下载，只用用户已下载的本地副本；6 档字重（200/300/400/500/700/800）",
+        weightFiles = listOf(
+            ScriptWeightFile(200, "2002 PingFang ExtraLight.ttf", 11_035_472L, catalogFaceId = "2002"),
+            ScriptWeightFile(300, "2004 PingFang Light.ttf", 11_024_840L, catalogFaceId = "2004"),
+            ScriptWeightFile(400, "2006 PingFang Regular.ttf", 11_004_656L, catalogFaceId = "2006"),
+            ScriptWeightFile(500, "2005 PingFang Medium.ttf", 10_968_356L, catalogFaceId = "2005"),
+            ScriptWeightFile(700, "2001 PingFang Bold.ttf", 10_923_212L, catalogFaceId = "2001"),
+            ScriptWeightFile(800, "2003 PingFang Heavy.ttf", 10_898_528L, catalogFaceId = "2003"),
+        ),
     ),
     TC(
-        displayName = "繁体中文（苹方 Semibold）",
+        displayName = "繁体中文（苹方）",
         moduleFileName = "2010.ttf",
         expectedBytes = 12_590_380L,
         expectedSha256 = "",
-        sourceNote = "走现有 catalog + FontStore 下载（face 2010，weight 600，库里最粗的 HK 档，没有 HK Bold）",
+        sourceNote = "走现有 catalog + FontStore 下载，只用用户已下载的本地副本；6 档字重（100/200/300/400/500/600，库里最粗只有 Semibold 600，没有 HK Bold）",
+        weightFiles = listOf(
+            ScriptWeightFile(100, "2011 PingFangHK-Thin.ttf", 12_550_652L, catalogFaceId = "2011"),
+            ScriptWeightFile(200, "2012 PingFangHK-Ultralight.ttf", 12_577_220L, catalogFaceId = "2012"),
+            ScriptWeightFile(300, "2007 PingFangHK-Light.ttf", 12_552_136L, catalogFaceId = "2007"),
+            ScriptWeightFile(400, "2009 PingFangHK-Regular.ttf", 12_545_048L, catalogFaceId = "2009"),
+            ScriptWeightFile(500, "2008 PingFangHK-Medium.ttf", 12_575_228L, catalogFaceId = "2008"),
+            ScriptWeightFile(600, "2010 PingFangHK-Semibold.ttf", 12_590_380L, catalogFaceId = "2010"),
+        ),
     ),
     JP(
-        displayName = "日文（Noto Sans JP Bold）",
+        displayName = "日文（Noto Sans JP）",
         moduleFileName = "NotoSansCJKjp-Bold.otf",
         expectedBytes = 17_032_620L,
         expectedSha256 = "e53dcb0dcb2922e45d01aae1ebd2f382bb81d4229b18b6b883bd170678af1f76",
-        sourceNote = "安装时按需从官方 raw URL 下载（notofonts/noto-cjk），不打包进 APK",
+        sourceNote = "安装时按需从官方 raw URL 下载（notofonts/noto-cjk），不打包进 APK；7 档字重（100/300/350/400/500/700/900）",
+        weightFiles = listOf(
+            ScriptWeightFile(100, "NotoSansCJKjp-Thin.otf", 14_927_060L),
+            ScriptWeightFile(300, "NotoSansCJKjp-Light.otf", 16_360_020L),
+            ScriptWeightFile(350, "NotoSansCJKjp-DemiLight.otf", 16_445_132L),
+            ScriptWeightFile(400, "NotoSansCJKjp-Regular.otf", 16_467_736L, "68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5"),
+            ScriptWeightFile(500, "NotoSansCJKjp-Medium.otf", 16_554_004L),
+            ScriptWeightFile(700, "NotoSansCJKjp-Bold.otf", 17_032_620L, "e53dcb0dcb2922e45d01aae1ebd2f382bb81d4229b18b6b883bd170678af1f76"),
+            ScriptWeightFile(900, "NotoSansCJKjp-Black.otf", 17_828_280L),
+        ),
     ),
     KR(
-        displayName = "韩文（Source Han Sans KR Bold）",
+        displayName = "韩文（Source Han Sans KR）",
         moduleFileName = "SourceHanSansK-Bold.otf",
         expectedBytes = 16_959_020L,
         expectedSha256 = "b15ca0f485b4a055f2fb7b4055a11cbe4cddd18a73a380f49aeb01b11dc58201",
-        sourceNote = "安装时按需从官方 raw URL 下载（adobe-fonts/source-han-sans），不打包进 APK",
-    ),
+        sourceNote = "安装时按需从官方 raw URL 下载（adobe-fonts/source-han-sans），不打包进 APK；7 档字重（200/300/350/400/500/700/800，注意 Normal 是 350 不是 400）",
+        weightFiles = listOf(
+            ScriptWeightFile(200, "SourceHanSansK-ExtraLight.otf", 14_889_236L),
+            ScriptWeightFile(300, "SourceHanSansK-Light.otf", 16_455_704L),
+            ScriptWeightFile(350, "SourceHanSansK-Normal.otf", 16_520_984L),
+            ScriptWeightFile(400, "SourceHanSansK-Regular.otf", 16_525_428L),
+            ScriptWeightFile(500, "SourceHanSansK-Medium.otf", 16_541_920L),
+            ScriptWeightFile(700, "SourceHanSansK-Bold.otf", 16_959_020L, "b15ca0f485b4a055f2fb7b4055a11cbe4cddd18a73a380f49aeb01b11dc58201"),
+            ScriptWeightFile(800, "SourceHanSansK-Heavy.otf", 17_610_080L),
+        ),
+    );
+
+    /**
+     * 设备字重 → 该语种实际用的文件：精确档直接取，没有精确档就取最近的可用字重，
+     * 距离相同取更粗的一档（例如 HK 700 → 600；SC 600 → 700；JP 600 → 700、800 → 900；
+     * KR 600 → 700、900 → 800；SC 100 → 200、HK 700/800/900 → 600）。
+     * 规则写死在这里，改动它必须同步改单测。
+     */
+    fun fileForWeight(weight: Int): ScriptWeightFile =
+        weightFiles.minWith(
+            compareBy<ScriptWeightFile> { abs(it.weight - weight) }.thenByDescending { it.weight },
+        )
+
+    /** 该语种全部字重的文件名（模块 staging 清单用）。 */
+    fun allFileNames(): Set<String> = weightFiles.map { it.fileName }.toSet()
 }
 
 /** 设备支持情况：内核 build 号精确表未知时给 [UNKNOWN]，只警告、不放行安装。 */
@@ -187,9 +278,16 @@ object SystemFont {
                 val current = firmwareDisplay.ifBlank { firmwareIncremental }.ifBlank { "未知" }
                 val known = match.knownBuilds.joinToString("、") { it.firmwareBuild }
                 if (crossModel != null) {
+                    // 候选来源行的状态决定文案：已实测行才写“已实测载荷”，
+                    // 待验证（已定标）行（如 DZJ3）必须写“待验证（已定标）载荷”，绝不能写“已实测”。
+                    val sourceText = if (crossModel.entry.status == FirmwareStatus.TESTED) {
+                        "已实测载荷"
+                    } else {
+                        "待验证（已定标）载荷"
+                    }
                     return DeviceCheck(
                         manufacturer, model, kernelVersion, DeviceSupport.CANDIDATE,
-                        "该固件（$current）未在 S24+ 支持列表里，但 S24 Ultra 有同构建号 ${crossModel.suffix} 的已实测载荷（${crossModel.entry.firmwareBuild}），你以前用这条路子通过过；需点确认才尝试，不默认走",
+                        "该固件（$current）未在 S24+ 支持列表里，但 S24 Ultra 有同构建号 ${crossModel.suffix} 的$sourceText（${crossModel.entry.firmwareBuild}），你以前用这条路子通过过；需点确认才尝试，不默认走",
                         firmware = match.copy(crossModel = crossModel), firmwareDisplay = firmwareDisplay, firmwareIncremental = firmwareIncremental,
                     )
                 }
@@ -309,41 +407,112 @@ object SystemFont {
         return major to minor
     }
 
+    /**
+     * 拉丁文各字重的来源：Inter 4.1 官方 release 包（33.7MB 的 zip，内含
+     * extras/otf/ 下 9 档静态 OTF，与内置 Inter-Bold.otf 同一版本、700 档
+     * 字节与 SHA-256 完全一致）。raw.githubusercontent.com 不托管 release
+     * 附件，所以主地址（raw）注定 404，[FontStore.download] 会按顺序 fallback
+     * 到 [extraUrls] 里的 release 直链；jsDelivr 没有 release 附件镜像。
+     * 注意：9 个档共用同一个 zip，调用方只下载一次、解出全部 9 个文件，
+     * 不要按档逐个调 store.download（否则会下 9 次 zip）。
+     */
+    const val LATIN_ZIP_REF = "v4.1"
+    const val LATIN_ZIP_FILE = "Inter-4.1.zip"
+    const val LATIN_ZIP_BYTES = 33_707_794L
+    const val LATIN_ZIP_URL = "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
+    const val LATIN_ZIP_INNER_DIR = "extras/otf/"
+
     /** Noto / Source Han 按需下载用的 FontFace（复用 FontStore.download，走 raw.githubusercontent.com）。 */
-    fun remoteFace(script: SystemFontScript): FontFace = when (script) {
-        SystemFontScript.JP -> FontFace(
-            id = "sysfont-noto-jp-bold",
-            fileName = "NotoSansCJKjp-Bold.otf",
-            exportName = "NotoSansCJKjp-Bold.otf",
-            weight = 700, weightName = "Bold", weightLabel = "粗体",
-            italic = false, optical = "", opticalLabel = "",
-            variable = false, format = "otf", innerName = "",
-            bytes = SystemFontScript.JP.expectedBytes,
-            repo = "notofonts/noto-cjk", ref = "main",
-            path = "Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
-            mirrorRepo = "", mirrorRef = "", mirrorPath = "",
-            // 备用：jsDelivr 的 GitHub 镜像（raw.githubusercontent.com 曾返回 503）。
-            // 两个地址都已实测：文件大小与 SHA-256 与期望值一致。
-            extraUrls = listOf(
-                FontUrls.jsdelivr("notofonts/noto-cjk", "main", "Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf"),
-            ),
-        )
-        SystemFontScript.KR -> FontFace(
-            id = "sysfont-sourcehan-kr-bold",
-            fileName = "SourceHanSansK-Bold.otf",
-            exportName = "SourceHanSansK-Bold.otf",
-            weight = 700, weightName = "Bold", weightLabel = "粗体",
-            italic = false, optical = "", opticalLabel = "",
-            variable = false, format = "otf", innerName = "",
-            bytes = SystemFontScript.KR.expectedBytes,
-            repo = "adobe-fonts/source-han-sans", ref = "release",
-            path = "OTF/Korean/SourceHanSansK-Bold.otf",
-            mirrorRepo = "", mirrorRef = "", mirrorPath = "",
-            extraUrls = listOf(
-                FontUrls.jsdelivr("adobe-fonts/source-han-sans", "release", "OTF/Korean/SourceHanSansK-Bold.otf"),
-            ),
-        )
-        else -> error("只有 JP / KR 走远程下载：$script")
+    fun remoteFace(script: SystemFontScript): FontFace = remoteFace(script, 700)
+
+    /**
+     * 按字重的远程 FontFace：JP/KR 取对应字重的文件；LATIN 取 Inter 4.1
+     * release 包里的对应档（format zip，innerName 指向包内路径）；
+     * 苹方（SC/TC）走 catalog，不走这里。
+     */
+    fun remoteFace(script: SystemFontScript, weight: Int): FontFace {
+        val file = script.fileForWeight(weight)
+        return when (script) {
+            SystemFontScript.LATIN -> FontFace(
+                id = "sysfont-inter-${file.weight}",
+                fileName = file.fileName,
+                exportName = file.fileName,
+                weight = file.weight, weightName = latinWeightName(file.weight),
+                weightLabel = weightLabel(file.weight),
+                italic = false, optical = "", opticalLabel = "",
+                variable = false, format = "zip", innerName = LATIN_ZIP_INNER_DIR + file.fileName,
+                bytes = LATIN_ZIP_BYTES,
+                repo = "rsms/inter", ref = LATIN_ZIP_REF,
+                path = LATIN_ZIP_FILE,
+                mirrorRepo = "", mirrorRef = "", mirrorPath = "",
+                // raw.githubusercontent.com 不托管 release 附件：主地址注定 404，
+                // FontStore.download 会 fallback 到这条 release 直链。
+                extraUrls = listOf(LATIN_ZIP_URL),
+            )
+            SystemFontScript.JP -> FontFace(
+                id = "sysfont-noto-jp-${file.weight}",
+                fileName = file.fileName,
+                exportName = file.fileName,
+                weight = file.weight, weightName = jpWeightName(file.weight),
+                weightLabel = weightLabel(file.weight),
+                italic = false, optical = "", opticalLabel = "",
+                variable = false, format = "otf", innerName = "",
+                bytes = file.expectedBytes,
+                repo = "notofonts/noto-cjk", ref = "main",
+                path = "Sans/OTF/Japanese/${file.fileName}",
+                mirrorRepo = "", mirrorRef = "", mirrorPath = "",
+                // 备用：jsDelivr 的 GitHub 镜像（raw.githubusercontent.com 曾返回 503）。
+                extraUrls = listOf(
+                    FontUrls.jsdelivr("notofonts/noto-cjk", "main", "Sans/OTF/Japanese/${file.fileName}"),
+                ),
+            )
+            SystemFontScript.KR -> FontFace(
+                id = "sysfont-sourcehan-kr-${file.weight}",
+                fileName = file.fileName,
+                exportName = file.fileName,
+                weight = file.weight, weightName = krWeightName(file.weight),
+                weightLabel = weightLabel(file.weight),
+                italic = false, optical = "", opticalLabel = "",
+                variable = false, format = "otf", innerName = "",
+                bytes = file.expectedBytes,
+                repo = "adobe-fonts/source-han-sans", ref = "release",
+                path = "OTF/Korean/${file.fileName}",
+                mirrorRepo = "", mirrorRef = "", mirrorPath = "",
+                extraUrls = listOf(
+                    FontUrls.jsdelivr("adobe-fonts/source-han-sans", "release", "OTF/Korean/${file.fileName}"),
+                ),
+            )
+            SystemFontScript.SC, SystemFontScript.TC ->
+                error("苹方走 catalog + FontStore，不走远程下载：$script")
+        }
+    }
+
+    /** 该语种全部字重的远程 FontFace（JP/KR 各档 + LATIN 的 zip 各档；苹方为空，走 catalog）。 */
+    fun remoteFaces(script: SystemFontScript): List<FontFace> = when (script) {
+        SystemFontScript.SC, SystemFontScript.TC -> emptyList()
+        else -> script.weightFiles.map { remoteFace(script, it.weight) }
+    }
+
+    private fun latinWeightName(weight: Int): String = when (weight) {
+        100 -> "Thin"; 200 -> "ExtraLight"; 300 -> "Light"; 400 -> "Regular"
+        500 -> "Medium"; 600 -> "SemiBold"; 700 -> "Bold"; 800 -> "ExtraBold"
+        900 -> "Black"; else -> "Regular"
+    }
+
+    private fun jpWeightName(weight: Int): String = when (weight) {
+        100 -> "Thin"; 300 -> "Light"; 350 -> "DemiLight"; 400 -> "Regular"
+        500 -> "Medium"; 700 -> "Bold"; 900 -> "Black"; else -> "Regular"
+    }
+
+    private fun krWeightName(weight: Int): String = when (weight) {
+        200 -> "ExtraLight"; 300 -> "Light"; 350 -> "Normal"; 400 -> "Regular"
+        500 -> "Medium"; 700 -> "Bold"; 800 -> "Heavy"; else -> "Regular"
+    }
+
+    private fun weightLabel(weight: Int): String = when (weight) {
+        100 -> "极细"; 200 -> "特细"; 300 -> "细体"; 350 -> "偏细"; 400 -> "常规"
+        500 -> "中等"; 600 -> "半粗"; 700 -> "粗体"; 800 -> "特粗"; 900 -> "极粗"
+        else -> "常规"
     }
 
     fun sha256Hex(file: File): String = sha256Hex(file.readBytes())
@@ -353,15 +522,20 @@ object SystemFont {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    /** 校验组合字体文件：大小 + 文件头（OTTO/\0\1\0\0/true）+ SHA-256（有期望值时）。 */
-    fun verifyFontFile(file: File, script: SystemFontScript): String? {
-        if (!file.exists()) return "${script.displayName}文件不存在"
-        if (file.length() != script.expectedBytes) {
-            return "${script.displayName}大小不对（${file.length()}，期望 ${script.expectedBytes}），可能没下完"
+    /** 校验组合字体文件：大小 + 文件头（OTTO/\0\1\0\0/true）+ SHA-256（有期望值时）。默认 700 档。 */
+    fun verifyFontFile(file: File, script: SystemFontScript): String? =
+        verifyFontFile(file, script, 700)
+
+    /** 按字重校验组合字体文件（大小与 SHA-256 取该语种对应字重档的期望值）。 */
+    fun verifyFontFile(file: File, script: SystemFontScript, weight: Int): String? {
+        val expected = script.fileForWeight(weight)
+        if (!file.exists()) return "${script.displayName}${expected.weight} 文件不存在"
+        if (file.length() != expected.expectedBytes) {
+            return "${script.displayName}${expected.weight} 大小不对（${file.length()}，期望 ${expected.expectedBytes}），可能没下完"
         }
-        if (!isFontHeaderValid(file)) return "${script.displayName}文件头校验失败，可能已损坏"
-        if (script.expectedSha256.isNotBlank() && sha256Hex(file) != script.expectedSha256) {
-            return "${script.displayName}校验和不对，可能已损坏或被替换"
+        if (!isFontHeaderValid(file)) return "${script.displayName}${expected.weight} 文件头校验失败，可能已损坏"
+        if (expected.expectedSha256.isNotBlank() && sha256Hex(file) != expected.expectedSha256) {
+            return "${script.displayName}${expected.weight} 校验和不对，可能已损坏或被替换"
         }
         return null
     }
@@ -380,10 +554,21 @@ object SystemFont {
     /** 解析 fonts.xml 是否合法（生成后必须调一次，失败则拒绝安装）。 */
     fun isValidFontsXml(xml: String): Boolean = runCatching { parseFontsXml(xml); true }.getOrDefault(false)
 
+    /** 该 family 里常规（normal）字重条目的 style 判定：没写 style 视同 normal。 */
+    fun isNormalStyle(style: String): Boolean = style.isBlank() || style == "normal"
+
     /**
-     * 重写 fonts.xml：只替换 sans-serif 系列 family 里 weight=700 的 <font> 条目，
-     * 按所选语种顺序填入组合字体文件名；700 条目不足时追加，多的 700 条目保留原样；
-     * 其他 family、别名、其他字重条目原样保留（节点内容不变，DOM 序列化会统一格式）。
+     * 重写 fonts.xml：把 sans-serif 系列 family 里每一条常规（normal）字重的
+     * <font> 条目，按所选语种顺序换成对应字重的组合字体文件——系统默认 400
+     * 映射各语种的常规文件（不是粗体），700 仍映射粗体文件。
+     * 同一字重的多个条目按位置分给各语种（第 1 条 → 第 1 个语种，以此类推）；
+     * 某字重的条目不够分时，在该字重的最后一条后追加（不堆到 family 末尾，
+     * 这样同字重的条目在文件里仍排在一起，预览可读）；
+     * 某字重的条目比语种多时，多出来的条目原样保留（三星原 fonts.xml 里
+     * sans-serif 每字重只有一个条目，正常走不到这条；真遇到了也不静默删）；
+     * 斜体（italic）等非常规条目没有斜体替换文件，原样保留——斜体文字仍会
+     * 走三星原厂字体，这是已知缺口，见文件头注释；
+     * 其他 family、别名原样保留（节点内容不变，DOM 序列化会统一格式）。
      */
     fun rewriteFontsXml(originalXml: String, selected: List<SystemFontScript>): String {
         require(selected.isNotEmpty()) { "至少选一个语种" }
@@ -394,15 +579,39 @@ object SystemFont {
             val family = families.item(i) as? Element ?: continue
             if (family.getAttribute("name") != "sans-serif") continue
             val fonts = directFontChildren(family)
-            val bold = fonts.filter { (it.getAttribute("weight").toIntOrNull() ?: 400) == 700 }
-            selected.forEachIndexed { index, script ->
-                if (index < bold.size) {
-                    setFontText(bold[index], script.moduleFileName)
-                } else {
+            // 按字重分组（保持原文件里字重第一次出现的顺序）。
+            val weights = fonts.filter { isNormalStyle(it.getAttribute("style")) }
+                .map { it.getAttribute("weight").toIntOrNull() ?: 400 }.distinct()
+            val slotsByWeight = weights.associateWith { weight ->
+                fonts.filter { isNormalStyle(it.getAttribute("style")) && (it.getAttribute("weight").toIntOrNull() ?: 400) == weight }
+            }
+            for (weight in weights) {
+                val slots = slotsByWeight.getValue(weight)
+                var anchor: Node = slots.last()
+                selected.forEachIndexed { index, script ->
+                    val fileName = script.fileForWeight(weight).fileName
+                    if (index < slots.size) {
+                        setFontText(slots[index], fileName)
+                    } else {
+                        val added = doc.createElement("font")
+                        added.setAttribute("weight", weight.toString())
+                        added.setAttribute("style", "normal")
+                        added.textContent = fileName
+                        // 追加在该字重的最后一条之后（其后可能有空白文本节点，
+                        // insertBefore(anchor.nextSibling) 仍保证排在该字重组内）。
+                        family.insertBefore(added, anchor.nextSibling)
+                        anchor = added
+                    }
+                }
+            }
+            // family 里没有任何常规条目（理论上不会发生）：按 400 追加一套，
+            // 不让安装走到“一个字重都没换”的状态。
+            if (weights.isEmpty()) {
+                selected.forEach { script ->
                     val added = doc.createElement("font")
-                    added.setAttribute("weight", "700")
+                    added.setAttribute("weight", "400")
                     added.setAttribute("style", "normal")
-                    added.textContent = script.moduleFileName
+                    added.textContent = script.fileForWeight(400).fileName
                     family.appendChild(added)
                 }
             }
@@ -424,24 +633,55 @@ object SystemFont {
         return emptyList()
     }
 
+    /** 读出 sans-serif family 里常规（normal）条目的全部字重（第一次出现的顺序，去重）。 */
+    fun sansSerifWeights(xml: String): List<Int> {
+        val model = parseFontsXmlModel(xml)
+        val sans = model.families.firstOrNull { it.name == "sans-serif" } ?: return emptyList()
+        return sans.fonts.filter { isNormalStyle(it.style) }.map { it.weight }.distinct()
+    }
+
     /**
      * 本次安装要改的每一条：原系统字体文件 → 组合字体文件。
-     * [oldFile] 为 null 表示原 family 里 700 条目不够、要追加的新条目。
+     * [oldFile] 为 null 表示原 family 里该字重条目不够、要追加的新条目。
+     * [weight] 是这条的字重；清单按字重分组（见 [groupChangesByWeight]），
      * 安装前确认弹窗就按这个清单原样展示，不做任何静默改动。
      */
-    data class FontChange(val oldFile: String?, val newFile: String, val script: SystemFontScript) {
+    data class FontChange(val oldFile: String?, val newFile: String, val script: SystemFontScript, val weight: Int) {
         val added: Boolean get() = oldFile == null
     }
+
+    /** 按字重分组的改动清单（安装前确认弹窗按这个分组展示，保持可读）。 */
+    data class WeightGroup(val weight: Int, val changes: List<FontChange>)
+
+    fun groupChangesByWeight(changes: List<FontChange>): List<WeightGroup> =
+        changes.groupBy { it.weight }.entries
+            .sortedBy { it.key }
+            .map { (weight, group) -> WeightGroup(weight, group) }
 
     fun computeChangeList(originalXml: String, selected: List<SystemFontScript>): List<FontChange> {
         require(selected.isNotEmpty()) { "至少选一个语种" }
         val model = parseFontsXmlModel(originalXml)
         val sans = model.families.firstOrNull { it.name == "sans-serif" }
             ?: error("原 fonts.xml 里没有 sans-serif family")
-        val bold = sans.fonts.filter { it.weight == 700 }
-        return selected.mapIndexed { index, script ->
-            if (index < bold.size) FontChange(oldFile = bold[index].text, newFile = script.moduleFileName, script = script)
-            else FontChange(oldFile = null, newFile = script.moduleFileName, script = script)
+        // 与 rewriteFontsXml 同一套规则：每字重按位置分条目，不够追加；
+        // 多出来的同字重条目与斜体条目原样保留，不进清单。
+        val weights = sans.fonts.filter { isNormalStyle(it.style) }.map { it.weight }.distinct()
+        if (weights.isEmpty()) {
+            return selected.map { script ->
+                FontChange(oldFile = null, newFile = script.fileForWeight(400).fileName, script = script, weight = 400)
+            }
+        }
+        return buildList {
+            for (weight in weights) {
+                val slots = sans.fonts.filter { isNormalStyle(it.style) && it.weight == weight }
+                selected.forEachIndexed { index, script ->
+                    if (index < slots.size) {
+                        add(FontChange(oldFile = slots[index].text, newFile = script.fileForWeight(weight).fileName, script = script, weight = weight))
+                    } else {
+                        add(FontChange(oldFile = null, newFile = script.fileForWeight(weight).fileName, script = script, weight = weight))
+                    }
+                }
+            }
         }
     }
 
@@ -494,11 +734,12 @@ object SystemFont {
      * 逐项检查（任一项不过就返回一条中文问题，空列表 = 通过）：
      * - family 数量与名字顺序不变；alias 节点原样不变；
      * - 非 sans-serif 的 family 里每条 <font> 逐字节（weight/style/文件名）不变；
-     * - sans-serif 里：非 700 条目不变；前 N 个 700 条目只换文件名（style 不变），
-     *   换成所选语种的组合文件名；超出原 700 条目数的部分只允许追加 700 条目，
-     *   且追加的必须是所选语种的组合文件；条目总数 = 原总数 + 追加数；
+     * - sans-serif 里：按 [rewriteFontsXml] 的同一套规则重建预期条目表，
+     *   逐条比对（weight/style/文件名全等）——常规字重的每一条都必须换成
+     *   所选语种对应字重的文件，不许留任何一条指向三星原厂文件；
+     *   斜体等非常规条目与多出来的同字重条目必须原样不动；
      * - 每个新文件名都必须在 [stagingFileNames] 里（即模块 staging 中确实存在该文件）；
-     * - 所选每个语种的组合文件都必须出现在新 sans-serif 的 700 条目里。
+     * - 所选每个语种、每个设备字重的组合文件都必须出现在新 sans-serif 里。
      */
     fun validateRewrite(
         originalXml: String,
@@ -539,48 +780,95 @@ object SystemFont {
                 problems.add("family「${oldFamily.name}」里的字体条目被改动了，已拒绝")
             }
         }
-        val oldFonts = oldSans.fonts
+        // 按 rewriteFontsXml 的同一套规则，从旧表重建新 sans-serif 应有的条目表，
+        // 再逐条比对：任何一条对不上（包括漏换的三星原厂文件）都拒绝。
+        val expectedSans = expectedSansFonts(oldSans.fonts, selected)
         val newFonts = newSans.fonts
-        val oldBoldIndices = oldFonts.indices.filter { oldFonts[it].weight == 700 }
-        val replacedCount = minOf(oldBoldIndices.size, selected.size)
-        val appendedCount = selected.size - replacedCount
-        if (newFonts.size != oldFonts.size + appendedCount) {
-            problems.add("sans-serif 里的字体条目总数不对（${oldFonts.size} → ${newFonts.size}，预期追加 $appendedCount 条），已拒绝")
+        if (newFonts.size != expectedSans.size) {
+            problems.add("sans-serif 里的字体条目总数不对（${oldSans.fonts.size} → ${newFonts.size}，预期 ${expectedSans.size} 条），已拒绝")
             return problems
         }
-        for (i in oldFonts.indices) {
-            val old = oldFonts[i]
-            val new = newFonts[i]
-            val boldPos = oldBoldIndices.indexOf(i)
-            if (old.weight == 700 && boldPos in 0 until replacedCount) {
-                val script = selected[boldPos]
-                if (new.weight != 700 || new.text != script.moduleFileName) {
-                    problems.add("sans-serif 第 ${i + 1} 条 700 字体被改成了预期之外的 ${new.text}，已拒绝")
-                } else if (new.style != old.style) {
-                    problems.add("sans-serif 第 ${i + 1} 条字体的 style 被改动了，已拒绝")
-                } else if (new.text !in stagingFileNames) {
-                    problems.add("新字体 ${new.text} 不在模块文件里，已拒绝")
-                }
-            } else if (new != old) {
-                problems.add("sans-serif 第 ${i + 1} 条非粗体字体被改动了（${old.text} → ${new.text}），已拒绝")
+        for (i in expectedSans.indices) {
+            val expected = expectedSans[i]
+            val actual = newFonts[i]
+            if (actual != expected) {
+                problems.add("sans-serif 第 ${i + 1} 条字体不是预期的 ${expected.text}（${expected.weight}），而是 ${actual.text}，已拒绝")
+            } else if (actual.text !in oldSans.fonts.map { it.text } && actual.text !in stagingFileNames) {
+                // 新换上的文件必须在 staging 里；原样保留的条目（斜体、多余同字重条目）除外。
+                problems.add("新字体 ${actual.text} 不在模块文件里，已拒绝")
             }
         }
-        for (j in 0 until appendedCount) {
-            val script = selected[replacedCount + j]
-            val new = newFonts[oldFonts.size + j]
-            if (new.weight != 700 || new.text != script.moduleFileName || new.style != "normal") {
-                problems.add("追加的字体条目不是预期的 ${script.moduleFileName}，已拒绝")
-            } else if (new.text !in stagingFileNames) {
-                problems.add("新字体 ${new.text} 不在模块文件里，已拒绝")
-            }
-        }
-        val newBoldTexts = newFonts.filter { it.weight == 700 }.map { it.text }
+        if (problems.isNotEmpty()) return problems
+        val newTexts = newFonts.map { it.text }
         for (script in selected) {
-            if (script.moduleFileName !in newBoldTexts) {
-                problems.add("缺少${script.displayName}的字体条目，已拒绝")
+            for (weight in sansSerifWeights(originalXml)) {
+                val file = script.fileForWeight(weight).fileName
+                if (file !in newTexts) {
+                    problems.add("缺少${script.displayName}${weight} 的字体条目（$file），已拒绝")
+                }
             }
         }
         return problems
+    }
+
+    /**
+     * 按 rewriteFontsXml 的规则，从旧 sans-serif 条目表算出新表应有的样子：
+     * 每字重的常规条目按位置换成各语种对应字重的文件，不够追加；
+     * 斜体等非常规条目与多出来的同字重条目原样保留。
+     */
+    private fun expectedSansFonts(
+        oldFonts: List<FontsXmlModel.FontEntry>,
+        selected: List<SystemFontScript>,
+    ): List<FontsXmlModel.FontEntry> {
+        val weights = oldFonts.filter { isNormalStyle(it.style) }.map { it.weight }.distinct()
+        if (weights.isEmpty()) {
+            return oldFonts + selected.map { script ->
+                FontsXmlModel.FontEntry(weight = 400, style = "normal", text = script.fileForWeight(400).fileName)
+            }
+        }
+        val slotsByWeight = weights.associateWith { weight ->
+            oldFonts.filter { isNormalStyle(it.style) && it.weight == weight }
+        }
+        val out = mutableListOf<FontsXmlModel.FontEntry>()
+        // 记录每个字重已处理到第几条原条目：追加项插在该字重的最后一条原条目之后。
+        val consumed = weights.associateWith { 0 }.toMutableMap()
+        for (old in oldFonts) {
+            if (!isNormalStyle(old.style)) {
+                out.add(old)
+                continue
+            }
+            val slots = slotsByWeight.getValue(old.weight)
+            val pos = consumed.getValue(old.weight)
+            consumed[old.weight] = pos + 1
+            if (pos < selected.size) {
+                val script = selected[pos]
+                out.add(
+                    FontsXmlModel.FontEntry(
+                        weight = old.weight,
+                        // style 原样保留（没写 style 的条目读出来是 ""，重写也不动它；
+                        // 这里绝不能归一化成 "normal"，否则会和实际重写结果对不上）。
+                        style = old.style,
+                        text = script.fileForWeight(old.weight).fileName,
+                    ),
+                )
+            } else {
+                out.add(old)
+            }
+            if (pos == slots.size - 1) {
+                // 该字重的最后一条原条目之后，追加分不到条目的语种。
+                for (index in slots.size until selected.size) {
+                    val script = selected[index]
+                    out.add(
+                        FontsXmlModel.FontEntry(
+                            weight = old.weight,
+                            style = "normal",
+                            text = script.fileForWeight(old.weight).fileName,
+                        ),
+                    )
+                }
+            }
+        }
+        return out
     }
 
     /** 把 staging 目录打成 KSU 模块 zip（ksud module install 吃 zip 不吃目录）。 */
@@ -601,12 +889,37 @@ object SystemFont {
     }
 
     /**
-     * 下载所选语种里需联网拉取的部分（JP/KR）所需空间：
-     * 文件本身 ×2（下载中的 .part 与落盘文件可能同时存在）+ 16MB 余量。
+     * 下载所选语种全部字重所需空间（最坏情况：设备上所有字重都要下）：
+     * - JP/KR：各字重文件本身 ×2（下载中的 .part 与落盘文件可能同时存在）；
+     * - LATIN：Inter 4.1 zip（33.7MB）×2（.part + 解压产物），9 档共用一个 zip；
+     * - 苹方（SC/TC）：只用用户已下载的本地副本，不在这里计下载量；
+     * 再加 16MB 余量。
+     * 调用方拿到设备 fonts.xml 后，应改用 [requiredDownloadBytes] 的按字重版，
+     * 只按设备上实际有的字重算（通常比全量小得多），界面显示也用那个数。
      */
-    fun requiredDownloadBytes(selected: List<SystemFontScript>): Long {
-        val remote = selected.filter { it == SystemFontScript.JP || it == SystemFontScript.KR }
-            .sumOf { it.expectedBytes }
+    fun requiredDownloadBytes(selected: List<SystemFontScript>): Long =
+        requiredDownloadBytes(selected, ALL_WEIGHTS)
+
+    /** 设备上实际有的字重集合（不知道时传 [ALL_WEIGHTS]，即按全量算）。 */
+    val ALL_WEIGHTS: Set<Int> = setOf(100, 200, 300, 350, 400, 500, 600, 700, 800, 900)
+
+    /**
+     * 按设备实际字重算下载所需空间：JP/KR 只算 [weights] 映射到的去重文件
+     * （两档设备字重映射到同一文件时只算一次）；LATIN 仍是整个 zip ×2；
+     * 苹方不计；再加 16MB 余量。
+     */
+    fun requiredDownloadBytes(selected: List<SystemFontScript>, weights: Set<Int>): Long {
+        var remote = 0L
+        for (script in selected) {
+            when (script) {
+                SystemFontScript.LATIN -> remote += LATIN_ZIP_BYTES
+                SystemFontScript.JP, SystemFontScript.KR -> {
+                    val files = weights.map { script.fileForWeight(it) }.distinctBy { it.fileName }
+                    remote += files.sumOf { it.expectedBytes }
+                }
+                SystemFontScript.SC, SystemFontScript.TC -> {}
+            }
+        }
         return remote * 2 + 16L * 1024 * 1024
     }
 
@@ -618,15 +931,29 @@ object SystemFont {
         appendLine("version=$versionName")
         appendLine("versionCode=$versionCode")
         appendLine("author=TokiFonts")
-        appendLine("description=Inter 组合字体：把系统粗体（700）替换为所选语种的 Inter 组合；只做 KSU magic mount，不写系统分区。删除本模块并重启 zygote 即可恢复原厂字体。")
+        appendLine("description=Inter 组合字体：把系统全部字重替换为所选语种的 Inter 组合（常规 400 用常规文件，粗体 700 用粗体文件）；只做 KSU magic mount，不写系统分区。删除本模块并重启 zygote 即可恢复原厂字体。")
     }.trimEnd() + "\n"
 
-    /** 模块文件清单（相对 staging 根目录）：module.prop + fonts.xml + 各语种字体文件 + 原 fonts.xml 备份。 */
-    fun moduleLayout(selected: List<SystemFontScript>): List<String> = buildList {
+    /** 模块文件清单（相对 staging 根目录）：module.prop + fonts.xml + 各语种全部字重文件 + 原 fonts.xml 备份。 */
+    fun moduleLayout(selected: List<SystemFontScript>): List<String> =
+        moduleLayout(selected, ALL_WEIGHTS)
+
+    /**
+     * 按设备实际字重的模块文件清单：只列 [weights] 映射到的去重文件。
+     * 调用方生成模块时按这个清单 staging 与复核；不知道设备字重时用无参版（全量）。
+     */
+    fun moduleLayout(selected: List<SystemFontScript>, weights: Set<Int>): List<String> = buildList {
         add("module.prop")
         add("system/etc/fonts.xml")
         add("fonts.xml.original")
-        selected.forEach { add("system/fonts/${it.moduleFileName}") }
+        selected.forEach { script ->
+            val files = if (weights == ALL_WEIGHTS) {
+                script.weightFiles
+            } else {
+                weights.map { script.fileForWeight(it) }.distinctBy { it.fileName }
+            }
+            files.forEach { add("system/fonts/${it.fileName}") }
+        }
     }
 
     private fun directFontChildren(family: Element): List<Element> {

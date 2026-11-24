@@ -95,6 +95,16 @@ data class Catalog(
     fun family(id: String) = families.firstOrNull { it.id == id }
     fun face(id: String) = families.asSequence().flatMap { it.faces }.firstOrNull { it.id == id }
 
+    /**
+     * 换系统字体用的苹方 face：按语种 + 设备字重取最近档（与
+     * [SystemFontScript.fileForWeight] 同一条最近字重规则，距离相同取更粗档）。
+     * 只查本地 catalog，不下载；缺文件时调用方的安装门禁拦住。
+     */
+    fun systemFontFace(script: SystemFontScript, weight: Int): FontFace? {
+        val faceId = script.fileForWeight(weight).catalogFaceId ?: return null
+        return face(faceId)
+    }
+
     companion object {
         /**
          * 容错解析：坏掉的 group / section / family / face 只跳过该条并计入 [Catalog.skipped]，
