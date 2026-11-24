@@ -12,6 +12,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class UpdateOffer(
@@ -34,7 +35,7 @@ object VersionNames {
         return currentHadSuffix
     }
 
-    /** 从资产文件名里抠版本号，如 tokifonts-0.1.2-android.apk → 0.1.2。 */
+    /** 从资产文件名里抠版本号，如 TokiFontsPro-0.1.0.apk → 0.1.0。 */
     fun fromFileName(name: String): String? {
         val match = Regex("""(\d+)\.(\d+)\.(\d+)""").find(name) ?: return null
         return match.value
@@ -70,45 +71,66 @@ object AppUpdate {
         currentCall?.cancel()
     }
 
+    /**
+     * Pro 轨认哪条 release：只认 tag 以 `pro-v` 开头的（Pro 轨）；
+     * 以 `v` 开头的 Main 轨 release 一律跳过（两路分轨，见 MEMORY）。
+     * 纯函数，方便单测。
+     */
+    fun isProTrackTag(tagName: String): Boolean = tagName.startsWith("pro-v")
+
+    /**
+     * 查 Pro 轨最新版：只认 tag 以 `pro-v` 开头的 release（Main 轨的 release
+     * 一律跳过；CI 按 `pro-v*` 分轨，见 MEMORY 两路分轨条目）。
+     * 用 releases 列表而不是 `/releases/latest`——latest 永远只返回最新的一条，
+     * Pro 发版后 Main 又发一版时，latest 就是 Main 的，Pro 用户会收不到更新。
+     * 资产名按发布命名：`TokiFontsPro-X.Y.Z.apk`（单个 pro，不带 -pro 后缀）。
+     * 版本号取资产文件名里的版本（取不到才回退到 tag 去掉 v 前缀与 -pro 后缀），
+     * 只信 tag 会在 tag 与包内版本脱节时反复弹窗（见旧注释）。
+     */
     fun latest(current: String): UpdateOffer? {
         val request = Request.Builder()
-            .url("https://api.github.com/repos/ichiyotsu/Tokifonts/releases/latest")
-            .header("User-Agent", "tokifonts/$current (https://github.com/ichiyotsu/Tokifonts)")
+            .url("https://api.github.com/repos/ichiyotsu/Tokifonts/releases?per_page=20")
+            .header("User-Agent", "tokifontspro/$current (https://github.com/ichiyotsu/Tokifonts)")
             .header("Accept", "application/vnd.github+json")
             .build()
         http.newCall(request).execute().use { response ->
             if (response.code == 404) return null
             if (!response.isSuccessful) error("检查更新失败 HTTP ${response.code}")
-            val json = JSONObject(response.body?.string().orEmpty())
-            if (json.optBoolean("draft") || json.optBoolean("prerelease")) return null
-            val tagVersion = json.optString("tag_name")
-            val assets = json.optJSONArray("assets") ?: return null
-            var chosen: JSONObject? = null
-            for (index in 0 until assets.length()) {
-                val asset = assets.getJSONObject(index)
-                val name = asset.optString("name")
-                if (name.endsWith("-android.apk")) {
-                    chosen = asset
-                    break
+            val releases = JSONArray(response.body?.string().orEmpty())
+            for (releaseIndex in 0 until releases.length()) {
+                val json = releases.getJSONObject(releaseIndex)
+                if (json.optBoolean("draft")) continue
+                val tagVersion = json.optString("tag_name")
+                // Pro 轨只认 pro-v 前缀的 tag；Main 轨（v 前缀）与别的 tag 一律跳过。
+                if (!isProTrackTag(tagVersion)) continue
+                val assets = json.optJSONArray("assets") ?: continue
+                var chosen: JSONObject? = null
+                for (index in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(index)
+                    val name = asset.optString("name")
+                    if (name.startsWith("TokiFontsPro-") && name.endsWith(".apk")) {
+                        chosen = asset
+                        break
+                    }
+                    if (chosen == null && name.endsWith(".apk")) chosen = asset
                 }
-                if (chosen == null && name.startsWith("tokifonts") && name.endsWith(".apk")) chosen = asset
+                val asset = chosen ?: continue
+                val url = asset.optString("browser_download_url")
+                if (!url.startsWith("https://")) error("更新地址无效")
+                val assetName = asset.optString("name").ifBlank { "TokiFontsPro-update.apk" }
+                val fileVersion = VersionNames.fromFileName(assetName)
+                val version = fileVersion
+                    ?: tagVersion.removePrefix("pro-v").removePrefix("pro-V").removePrefix("v").removePrefix("V")
+                if (!VersionNames.isNewer(version, current)) return null
+                return UpdateOffer(
+                    version = version.removePrefix("v").removePrefix("V"),
+                    notes = json.optString("body"),
+                    url = url,
+                    assetName = assetName,
+                    sha256 = asset.optString("digest").substringAfter("sha256:", "").lowercase(),
+                )
             }
-            val asset = chosen ?: return null
-            val url = asset.optString("browser_download_url")
-            if (!url.startsWith("https://")) error("更新地址无效")
-            // 只信 tag 会误报：tag 与包内版本脱节时（如 tag v1.3.1 却装了 1.3.0 的包），
-            // 装完版本号仍小于 tag，会反复弹窗。资产文件名里的版本优先，取不到才回退到 tag。
-            val assetName = asset.optString("name").ifBlank { "tokifonts-update.apk" }
-            val fileVersion = VersionNames.fromFileName(assetName)
-            val version = fileVersion ?: tagVersion
-            if (!VersionNames.isNewer(version, current)) return null
-            return UpdateOffer(
-                version = version.removePrefix("v").removePrefix("V"),
-                notes = json.optString("body"),
-                url = url,
-                assetName = assetName,
-                sha256 = asset.optString("digest").substringAfter("sha256:", "").lowercase(),
-            )
+            return null
         }
     }
 

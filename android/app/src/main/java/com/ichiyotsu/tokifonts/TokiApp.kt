@@ -175,19 +175,33 @@ private fun TokiAppContent(
     } else {
         null
     }
-    val headerTrailing: (@Composable () -> Unit)? = if (onLibraryList) {
-        {
-            TokiCircleIconChip(
-                icon = "download",
-                label = "一键下载",
-                backdropBlur = vm.backdropBlur,
-                hazeState = haze,
-                enabled = vm.bulk == null,
-                onClick = { if (bulkPending.isEmpty()) vm.flash("全部字体已下载") else bulkConfirm = true },
-            )
+    val headerTrailing: (@Composable () -> Unit)? = when {
+        onLibraryList -> {
+            {
+                TokiCircleIconChip(
+                    icon = "download",
+                    label = "一键下载",
+                    backdropBlur = vm.backdropBlur,
+                    hazeState = haze,
+                    enabled = vm.bulk == null,
+                    onClick = { if (bulkPending.isEmpty()) vm.flash("全部字体已下载") else bulkConfirm = true },
+                )
+            }
         }
-    } else {
-        null
+        // 安装页（向导首页）：顶栏右端放设备列表更新按钮（与字体列表页的一键下载同一套圆形玻璃键）。
+        vm.tab == 1 && vm.installPage == "fonts" -> {
+            {
+                TokiCircleIconChip(
+                    icon = "refresh",
+                    label = "更新设备列表",
+                    backdropBlur = vm.backdropBlur,
+                    hazeState = haze,
+                    enabled = !vm.feedUpdating,
+                    onClick = vm::refreshFeed,
+                )
+            }
+        }
+        else -> null
     }
     val headerTitle: String = when {
         vm.tab == 0 && vm.openFamilyId != null -> vm.catalog?.family(vm.openFamilyId!!)?.name ?: "字体"

@@ -1,0 +1,26 @@
+#!/system/bin/sh
+exec >/data/local/tmp/w/umh-kdp.log 2>&1
+echo "start uid=$(id -u) ctx=$(cat /proc/self/attr/current 2>/dev/null) enforce=$(getenforce 2>/dev/null)"
+echo "before: module=$(grep -c kernelsu /proc/modules 2>/dev/null)"
+unshare -m sh -c '
+  mount --bind /data/local/tmp/ksud-s25u-kdp /system/bin/logcat || { echo mount_failed; exit 11; }
+  echo "bind mounted kdp"
+  /system/bin/logcat --version
+  if [ -f /data/local/tmp/w/disable-modules ]; then
+      for d in /data/adb/modules/*/; do
+          [ -d "$d" ] || continue
+          [ -f "$d/disable" ] && continue
+          [ -f "$d/remove" ] && continue
+          touch "$d/disable" && echo "module disabled: $d"
+      done
+  fi
+  /system/bin/logcat late-load --ephemeral --allow-shell --package-name me.weishu.kernelsu
+  echo "late_rc=$?"
+  if [ -f /data/local/tmp/w/hide-su-compat ]; then
+      /system/bin/logcat feature set su_compat 0 && echo "su_compat disabled (hide /system/bin/su)" || echo "su_compat disable failed"
+  fi
+'
+echo "outer_rc=$?"
+echo "after: module=$(grep -c kernelsu /proc/modules 2>/dev/null)"
+grep -i kernelsu /proc/modules 2>/dev/null
+ls -l /data/adb/ksud /data/adb/ksu/bin/ksud 2>&1

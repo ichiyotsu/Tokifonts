@@ -122,7 +122,7 @@ class SystemFontTest {
 
     @Test fun modulePropHasRequiredFields() {
         val prop = SystemFont.buildModuleProp("0.1.7", 8)
-        assertTrue(prop.contains("id=tokifonts-font"))
+        assertTrue(prop.contains("id=tokifontspro-font"))
         assertTrue(prop.contains("name=Inter"))
         assertTrue(prop.contains("version=0.1.7"))
         assertTrue(prop.contains("versionCode=8"))
@@ -612,10 +612,10 @@ class SystemFontTest {
     @Test fun clearStagingRemovesStagingDirAndZip() {
         val staging = Files.createTempDirectory("sysfont-staging").toFile()
         try {
-            File(staging, "module.prop").writeText("id=tokifonts-font\n")
+            File(staging, "module.prop").writeText("id=tokifontspro-font\n")
             File(staging, "system/etc/fonts.xml").apply { parentFile.mkdirs() }.writeText("<familyset/>")
             File(staging, "system/fonts/Inter-Bold.otf").apply { parentFile.mkdirs() }.writeText("fake-font-bytes")
-            val zip = File(staging.parentFile, "tokifonts-font.zip")
+            val zip = File(staging.parentFile, "tokifontspro-font.zip")
             try {
                 zip.writeText("fake-zip")
                 assertTrue(staging.exists())
@@ -786,10 +786,10 @@ class SystemFontTest {
     @Test fun buildModuleZipRoundTrips() {
         val staging = Files.createTempDirectory("sysfont-staging").toFile()
         try {
-            File(staging, "module.prop").writeText("id=tokifonts-font\n")
+            File(staging, "module.prop").writeText("id=tokifontspro-font\n")
             File(staging, "system/etc/fonts.xml").apply { parentFile.mkdirs() }.writeText("<familyset/>")
             File(staging, "system/fonts/Inter-Bold.otf").apply { parentFile.mkdirs() }.writeText("fake-font-bytes")
-            val zip = File(staging.parentFile, "tokifonts-font.zip")
+            val zip = File(staging.parentFile, "tokifontspro-font.zip")
             try {
                 SystemFont.buildModuleZip(staging, zip)
                 val entries = mutableMapOf<String, String>()
@@ -1019,12 +1019,12 @@ class SystemFontTest {
     @Test fun buildModuleZipRoundTripsMultiWeightFiles() {
         val staging = Files.createTempDirectory("sysfont-staging-multi").toFile()
         try {
-            File(staging, "module.prop").writeText("id=tokifonts-font\n")
+            File(staging, "module.prop").writeText("id=tokifontspro-font\n")
             File(staging, "system/etc/fonts.xml").apply { parentFile.mkdirs() }.writeText("<familyset/>")
             File(staging, "system/fonts/Inter-Regular.otf").apply { parentFile.mkdirs() }.writeText("fake-regular")
             File(staging, "system/fonts/Inter-Bold.otf").writeText("fake-bold")
             File(staging, "system/fonts/2006 PingFang Regular.ttf").writeText("fake-pingfang")
-            val zip = File(staging.parentFile, "tokifonts-font-multi.zip")
+            val zip = File(staging.parentFile, "tokifontspro-font-multi.zip")
             try {
                 SystemFont.buildModuleZip(staging, zip)
                 val entries = mutableSetOf<String>()
@@ -1045,5 +1045,234 @@ class SystemFontTest {
         } finally {
             staging.deleteRecursively()
         }
+    }
+
+    // ---- Root-My-Galaxy 合并（targets-v3.json，20 个 payload）----
+
+    @Test fun rmgTableHasTwentyPayloadsFromFeed() {
+        assertEquals(20, FirmwareSupport.RMG_PAYLOADS.size)
+        assertTrue(FirmwareSupport.RMG_TABLE_SOURCE.contains("targets-v3.json"))
+        // 全部只有 GhostLock/43499 这一条引擎；feed 里没有 KSU 版本号，
+        // 驱动只记随载荷提供的工件，不编版本号。
+        for (payload in FirmwareSupport.RMG_PAYLOADS) {
+            assertEquals(FirmwareSupport.RMG_ENGINE, payload.engine)
+            assertEquals(RootTool.ROOT_MY_GALAXY, payload.tool)
+            assertEquals(FirmwareStatus.PORTED, payload.status)
+            assertEquals(FirmwareSupport.RMG_DRIVER_NOTE, payload.driver)
+            assertTrue(payload.exploitUrl.contains("cve-2026-43499-app.so"))
+            assertTrue(payload.exploitSize > 0)
+            assertTrue(payload.kernelsuUrl.contains("kernelsu/ksud-"))
+            assertTrue(payload.kernelsuSize > 0)
+            assertTrue(payload.models.isNotEmpty())
+            assertTrue(payload.kernelVersions.isNotEmpty())
+        }
+        // 每条 payloadId 唯一。
+        assertEquals(20, FirmwareSupport.RMG_PAYLOADS.map { it.payloadId }.toSet().size)
+    }
+
+    @Test fun rms24RowsCarryToolAndDriver() {
+        // 本表 31 行不变，全部是 root-my-s24；驱动按 README 驱动版本表。
+        assertEquals(31, FirmwareSupport.ENTRIES.size)
+        assertTrue(FirmwareSupport.ENTRIES.all { it.tool == RootTool.ROOT_MY_S24 })
+        val ezif = FirmwareSupport.ENTRIES.first { it.firmwareBuild == "S9280ZHS6EZJ1" }
+        assertEquals("98260 UAF", ezif.engine)
+        assertTrue(ezif.driver.contains("3.2.5"))
+        val dzf2 = FirmwareSupport.ENTRIES.first { it.firmwareBuild == "S9280ZCS6DZF2" }
+        assertEquals("GhostLock", dzf2.engine)
+        assertTrue(dzf2.driver.contains("3.3.0"))
+        val dzj3 = FirmwareSupport.ENTRIES.first { it.firmwareBuild == "S9280ZCS6DZJ3" }
+        assertEquals("98260 UAF", dzj3.engine)
+        assertTrue(dzj3.driver.contains("3.2.5"))
+        assertTrue(FirmwareSupport.DRIVER_KDP_EXPERIMENTAL.contains("3.3.1"))
+    }
+
+    @Test fun kernelFullVersionParsing() {
+        assertEquals("6.1.145", SystemFont.parseKernelFullVersion("6.1.145-android14-11-00001"))
+        assertEquals("6.6.98", SystemFont.parseKernelFullVersion("6.6.98-android16"))
+        assertEquals("5.15.189", SystemFont.parseKernelFullVersion("  5.15.189-android13 "))
+        assertNull(SystemFont.parseKernelFullVersion("6.1-android14"))
+        assertNull(SystemFont.parseKernelFullVersion(""))
+    }
+
+    @Test fun rmgMatchS926BWith6157() {
+        // SM-S926B + 6.1.157 → root-my-galaxy（RMS24 表里没有 S926B）。
+        val payload = FirmwareSupport.matchRmg(
+            "SM-S926B", "S926BXXUEDZDR", "S926BXXUEDZDR", "6.1.157-android14-11-00001",
+        )
+        assertEquals("e2s-S926BXXUEDZDR", payload?.payloadId)
+        assertEquals(true, payload?.requiresFreshP0Session)
+        val rec = FirmwareSupport.recommendTool(
+            "SM-S926B", "S926BXXUEDZDR", "S926BXXUEDZDR", "6.1.157-android14-11-00001",
+        )
+        assertEquals(RootTool.ROOT_MY_GALAXY, rec.recommendedTool)
+        assertEquals(setOf(RootTool.ROOT_MY_GALAXY), rec.supportedTools)
+        assertEquals("e2s-S926BXXUEDZDR", rec.rmgPayload?.payloadId)
+        assertEquals(FirmwareStatus.PORTED, rec.status)
+        assertTrue(rec.engine?.contains("43499") == true)
+        assertEquals(FirmwareSupport.RMG_DRIVER_NOTE, rec.driver)
+        assertTrue(rec.supportsCurrentFirmware)
+        assertEquals("root-my-galaxy", rec.recommendedTool?.label)
+    }
+
+    @Test fun rmgMatchNeedsExactThreePartKernel() {
+        // 同机型、内核三段不对 → 不命中；两段 major.minor 也不够。
+        assertNull(
+            FirmwareSupport.matchRmg("SM-S926B", "", "", "6.1.145-android14-11-00001"),
+        )
+        assertNull(
+            FirmwareSupport.matchRmg("SM-S926B", "", "", "6.1-android14"),
+        )
+        assertNull(FirmwareSupport.matchRmg("SM-S926B", "", "", ""))
+        // 机型不对也不命中。
+        assertNull(
+            FirmwareSupport.matchRmg("SM-S926C", "", "", "6.1.157-android14-11-00001"),
+        )
+        // 固件构建号不参与匹配：display/incremental 为空也能命中。
+        assertEquals(
+            "e2s-S926BXXUEDZDR",
+            FirmwareSupport.matchRmg("SM-S926B", "", "", "6.1.157-android14-11-00001")?.payloadId,
+        )
+    }
+
+    @Test fun rmgS25RowMatchesByModelAndFullKernel() {
+        // S25 系列行：SM-S931B 只在 RMG feed 里，不在 RMS24 表里。
+        val payload = FirmwareSupport.matchRmg(
+            "SM-S931B", "S931BXXU1CZG1", "S931BXXU1CZG1", "6.6.98-android16",
+        )
+        assertEquals("galaxy-s25-series-2026-06-07", payload?.payloadId)
+        val rec = FirmwareSupport.recommendTool(
+            "SM-S931B", "S931BXXU1CZG1", "S931BXXU1CZG1", "6.6.98-android16",
+        )
+        assertEquals(RootTool.ROOT_MY_GALAXY, rec.recommendedTool)
+        assertTrue(rec.supportsCurrentFirmware)
+    }
+
+    @Test fun bothToolsSupportS9280Dzf2() {
+        // SM-S9280 DZF2 + 6.1.145 → 两者都支持：RMS24 已实测行 + RMG 载荷行；
+        // 已实测优先，首选仍是 root-my-s24。
+        val rec = FirmwareSupport.recommendTool(
+            "SM-S9280",
+            "UP1A.231005.007.S9280ZCS6DZF2", "S9280ZCS6DZF2", "6.1.145-android14-11",
+        )
+        assertEquals(RootTool.ROOT_MY_S24, rec.recommendedTool)
+        assertEquals(setOf(RootTool.ROOT_MY_S24, RootTool.ROOT_MY_GALAXY), rec.supportedTools)
+        assertEquals("两者都支持", rec.toolsLabel)
+        assertEquals("S9280ZCS6DZF2", rec.rms24Entry?.firmwareBuild)
+        assertEquals(FirmwareStatus.TESTED, rec.rms24Entry?.status)
+        assertEquals("e3q-S9280ZCS6DZF2", rec.rmgPayload?.payloadId)
+        assertEquals(FirmwareStatus.TESTED, rec.status)
+        assertEquals("GhostLock", rec.engine)
+        assertTrue(rec.driver?.contains("3.3.0") == true)
+        assertTrue(rec.supportsCurrentFirmware)
+    }
+
+    @Test fun dzj3ExcludesRmgGhostLock() {
+        // 锁死陷阱：SM-S9280 DZJ3 已修复 43499，RMG 的 e3q-S9280ZCS6DZF2 行
+        // （机型 + 6.1.145 都对得上）绝不能被推荐；只剩 RMS24 的 98260 行。
+        assertTrue(
+            FirmwareSupport.isGhostLockPatched(
+                "SM-S9280", "UP1A.231005.007.S9280ZCS6DZJ3", "S9280ZCS6DZJ3",
+            ),
+        )
+        assertFalse(
+            FirmwareSupport.isGhostLockPatched(
+                "SM-S9280", "UP1A.231005.007.S9280ZCS6DZF2", "S9280ZCS6DZF2",
+            ),
+        )
+        assertNull(
+            FirmwareSupport.matchRmg(
+                "SM-S9280", "UP1A.231005.007.S9280ZCS6DZJ3", "S9280ZCS6DZJ3",
+                "6.1.145-android14-11",
+            ),
+        )
+        // 同机型同内核、固件是 DZF2 时 RMG 正常命中——排除只针对 DZJ3。
+        assertEquals(
+            "e3q-S9280ZCS6DZF2",
+            FirmwareSupport.matchRmg(
+                "SM-S9280", "UP1A.231005.007.S9280ZCS6DZF2", "S9280ZCS6DZF2",
+                "6.1.145-android14-11",
+            )?.payloadId,
+        )
+        val rec = FirmwareSupport.recommendTool(
+            "SM-S9280",
+            "UP1A.231005.007.S9280ZCS6DZJ3", "S9280ZCS6DZJ3", "6.1.145-android14-11",
+        )
+        assertEquals(RootTool.ROOT_MY_S24, rec.recommendedTool)
+        assertEquals(setOf(RootTool.ROOT_MY_S24), rec.supportedTools)
+        assertEquals("root-my-s24", rec.toolsLabel)
+        assertNull(rec.rmgPayload)
+        assertEquals("S9280ZCS6DZJ3", rec.rms24Entry?.firmwareBuild)
+        assertEquals(FirmwareStatus.CALIBRATED, rec.status)
+        assertEquals("98260 UAF", rec.engine)
+        assertTrue(rec.driver?.contains("3.2.5") == true)
+        assertTrue(rec.supportsCurrentFirmware)
+        assertTrue(rec.reason.contains("43499"))
+    }
+
+    @Test fun s9260Dzj3CandidateStaysInsideRms24() {
+        // S9260 DZJ3 的跨机型候选只能是 RMS24 的 S9280 DZJ3 行，不能串到 RMG 去：
+        // RMG 里根本没有 S9260，且 DZJ3 已修复 43499。
+        val rec = FirmwareSupport.recommendTool(
+            "SM-S9260",
+            "UP1A.231005.007.S9260ZCS6DZJ3", "S9260ZCS6DZJ3", "6.1.145-android14-11",
+        )
+        assertEquals(RootTool.ROOT_MY_S24, rec.recommendedTool)
+        assertEquals(setOf(RootTool.ROOT_MY_S24), rec.supportedTools)
+        assertNull(rec.rmgPayload)
+        assertNull(rec.ported)
+        val cross = rec.crossModel
+        assertEquals("S9280ZCS6DZJ3", cross?.entry?.firmwareBuild)
+        assertEquals("DZJ3", cross?.suffix)
+        assertEquals(RootTool.ROOT_MY_S24, cross?.entry?.tool)
+        assertEquals("98260 UAF", cross?.entry?.engine)
+        assertEquals(FirmwareStatus.CALIBRATED, rec.status)
+        assertEquals("98260 UAF", rec.engine)
+        // 候选是回退，不是本固件精确支持。
+        assertFalse(rec.supportsCurrentFirmware)
+        assertTrue(rec.reason.contains("跨机型候选"))
+    }
+
+    @Test fun recommendPrefersTestedOverCalibratedAndPorted() {
+        // 一侧已实测、另一侧待验证/移植时选已实测（DZF2 已覆盖）；
+        // 都没有已实测时，待验证胜过移植：S9360 CZG1 上 RMS24 是待验证行，
+        // RMG 是移植行 → 首选 root-my-s24（待验证）。
+        val s9360 = FirmwareSupport.recommendTool(
+            "SM-S9360",
+            "UP1A.231005.007.S9360ZCSCCZG1", "S9360ZCSCCZG1", "6.6.98-android16",
+        )
+        assertEquals(RootTool.ROOT_MY_S24, s9360.recommendedTool)
+        assertEquals(setOf(RootTool.ROOT_MY_S24, RootTool.ROOT_MY_GALAXY), s9360.supportedTools)
+        assertEquals(FirmwareStatus.CALIBRATED, s9360.status)
+        assertEquals("S9360ZCSCCZG1", s9360.rms24Entry?.firmwareBuild)
+        assertEquals("pa2q-S9360ZCSCCZG1", s9360.rmgPayload?.payloadId)
+        assertTrue(s9360.supportsCurrentFirmware)
+        // 两边都没有时返回均不支持。
+        val none = FirmwareSupport.recommendTool(
+            "SM-A5560", "A5560ZCS6DZF2", "A5560ZCS6DZF2", "6.1.118-android14",
+        )
+        assertNull(none.recommendedTool)
+        assertTrue(none.supportedTools.isEmpty())
+        assertEquals("均不支持", none.toolsLabel)
+        assertNull(none.status)
+        assertFalse(none.supportsCurrentFirmware)
+    }
+
+    @Test fun rmgDoesNotChangeCheckDeviceLevels() {
+        // RMG 只进推荐层，不进 checkDevice：SM-S926B 在 RMS24 表里没有，
+        // 哪怕 RMG 有它的载荷，checkDevice 仍是 UNSUPPORTED（行为保持不变）。
+        val s926b = SystemFont.checkDevice(
+            "samsung", "SM-S926B",
+            "UP1A.231005.007.S926BXXUEDZDR", "S926BXXUEDZDR", "6.1.157-android14-11",
+        )
+        assertEquals(DeviceSupport.UNSUPPORTED, s926b.support)
+        assertEquals(FirmwareMatchKind.UNKNOWN_MODEL, s926b.firmware?.kind)
+        // SM-S9280 DZJ3 仍是 RMS24 的待验证行，不受 RMG 排除规则以外的任何影响。
+        val dzj3 = SystemFont.checkDevice(
+            "samsung", "SM-S9280",
+            "UP1A.231005.007.S9280ZCS6DZJ3", "S9280ZCS6DZJ3", "6.1.145-android14-11",
+        )
+        assertEquals(DeviceSupport.CALIBRATED, dzj3.support)
+        assertEquals(FirmwareMatchKind.EXACT_CALIBRATED, dzj3.firmware?.kind)
+        assertEquals("98260 UAF", dzj3.firmware?.entry?.engine)
     }
 }

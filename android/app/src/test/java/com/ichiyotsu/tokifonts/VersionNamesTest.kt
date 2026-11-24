@@ -23,8 +23,9 @@ class VersionNamesTest {
     }
 
     @Test fun fileNameVersion() {
-        assertEquals("0.1.2", VersionNames.fromFileName("tokifonts-0.1.2-android.apk"))
-        assertEquals("1.3.1", VersionNames.fromFileName("tokifonts-1.3.1-android.apk"))
-        assertNull(VersionNames.fromFileName("tokifonts-update.apk"))
+        // Pro 轨资产名 TokiFontsPro-X.Y.Z.apk（单个 pro）；Main 轨 TokiFonts-X.Y.Z.apk。
+        assertEquals("0.1.0", VersionNames.fromFileName("TokiFontsPro-0.1.0.apk"))
+        assertEquals("0.1.10", VersionNames.fromFileName("TokiFonts-0.1.10.apk"))
+        assertNull(VersionNames.fromFileName("TokiFontsPro-update.apk"))
     }
 }

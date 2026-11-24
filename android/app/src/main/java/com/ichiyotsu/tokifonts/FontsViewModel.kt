@@ -106,6 +106,257 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         private set
     var sysFontRootChecking by mutableStateOf(false)
         private set
+    // ---- 安装页四步向导（Shizuku → root 工具 → KernelSU → 模块）----
+    /** Shizuku 是否已装（按包名 + 启动 intent 检测）：null = 还没检查。 */
+    var sysFontShizukuInstalled by mutableStateOf<Boolean?>(null)
+        private set
+    /** KernelSU Manager 是否已装：null = 还没检查。 */
+    var sysFontKsuManagerInstalled by mutableStateOf<Boolean?>(null)
+        private set
+    /** 已装的 root 工具（按包名检测到、有启动 intent 的）。 */
+    var sysFontInstalledRootTools by mutableStateOf<Set<RootTool>>(emptySet())
+        private set
+    /**
+     * 用户手动确认“已装好”的 root 工具：极少数情况下包名检测不到
+     * （如 root 工具换了包名），装好后点“我已装好”也可以放行第 2 步；
+     * 重新检查设备时不清零（是用户自己的确认，不是检测结果）。
+     */
+    var sysFontConfirmedRootTools by mutableStateOf<Set<RootTool>>(emptySet())
+        private set
+
+    fun confirmRootToolInstalled(tool: RootTool) {
+        sysFontConfirmedRootTools = sysFontConfirmedRootTools + tool
+    }
+
+    /**
+     * 第 2 步的工具推荐：按当前设备（机型 + 固件 + 内核）算，
+     * 设备还没检查时为 null。推荐本身不改变设备是否支持换字体，
+     * 只决定第 2 步用哪个工具（见 [FirmwareSupport.recommendTool]）。
+     */
+    val sysFontToolRecommendation: ToolRecommendation?
+        get() = sysFontDevice?.let { device ->
+            FirmwareSupport.recommendTool(
+                device.model,
+                device.firmwareDisplay,
+                device.firmwareIncremental,
+                device.kernelVersion,
+            )
+        }
+
+    /** 四步向导的外部应用是否已装（Shizuku / KernelSU Manager / 已知包名的 root 工具）。 */
+    fun checkWizardApps() {
+        val packageManager = getApplication<Application>().packageManager
+        fun isInstalled(packageName: String): Boolean =
+            runCatching { packageManager.getLaunchIntentForPackage(packageName) != null }
+                .getOrDefault(false)
+        sysFontShizukuInstalled = isInstalled(WizardApps.SHIZUKU_PACKAGE)
+        sysFontKsuManagerInstalled = isInstalled(WizardApps.KERNELSU_MANAGER_PACKAGE)
+        sysFontInstalledRootTools = RootTool.entries.filter { tool ->
+            val packageName = WizardApps.launchPackageFor(tool) ?: return@filter false
+            isInstalled(packageName)
+        }.toSet()
+        // Shizuku 是否正在运行：pingBinder（Shizuku API，本地 AAR）。Shizuku 没起来
+        // 时返回 false；任何异常都当作“没查到”，不崩溃、不谎报已运行。
+        sysFontShizukuRunning = runCatching { rikka.shizuku.Shizuku.pingBinder() }.getOrNull()
+    }
+
+    // ---- 每日固件支持 feed（安装页顶栏更新按钮）----
+    /** 安装页顶栏下的 feed 状态行（界面直接展示）：用的哪份表、更新到哪天、失败原因。 */
+    var feedStatus by mutableStateOf("设备列表：内置（$BUILTIN_FEED_DATE）")
+        private set
+    /** 正在拉取 feed（顶栏更新按钮转圈）。 */
+    var feedUpdating by mutableStateOf(false)
+        private set
+    /** 当前生效的 feed 的 updatedAt（null = 内置表）。 */
+    var feedUpdatedAt by mutableStateOf<String?>(null)
+        private set
+
+    private fun feedCacheFile(): File =
+        File(getApplication<Application>().filesDir, FirmwareFeed.CACHE_FILE_NAME)
+
+    private fun activeFeedEntryCount(): Int {
+        val tables = FirmwareSupport.activeTables()
+        return tables.entries.size + tables.rmgPayloads.size + tables.portedPayloads.size
+    }
+
+    /**
+     * 启动时读本地缓存的 feed：校验通过就换成缓存表并重新匹配（不联网）；
+     * 缓存缺失 / 校验失败就沿用内置表，并在状态行明示。
+     */
+    fun loadCachedFeed() {
+        val cache = feedCacheFile()
+        if (!cache.exists()) return
+        val text = runCatching { cache.readText() }.getOrNull() ?: return
+        when (val result = FirmwareFeed.validateFeed(text, null)) {
+            is FirmwareFeed.FeedValidation.Valid -> {
+                FirmwareSupport.useTables(FirmwareFeed.feedToTables(result.json))
+                feedUpdatedAt = FirmwareFeed.updatedAtOf(result.json)
+                feedStatus = "设备列表：已更新到 ${feedUpdatedAt ?: "未知日期"}（本地缓存）"
+                if (sysFontDevice != null) checkSystemFontDevice()
+            }
+            is FirmwareFeed.FeedValidation.Invalid -> {
+                FirmwareSupport.resetTables()
+                feedStatus = "设备列表：内置（$BUILTIN_FEED_DATE），本地缓存损坏已弃用：${result.reason}"
+            }
+        }
+    }
+
+    /**
+     * 点顶栏更新按钮：从 Pro 分支拉 docs/firmware-support.json，按 SCHEMA 校验，
+     * 通过后缓存到本地并用新表重新匹配；无网或拉取/校验失败时保留内置表
+     * （或上一次好的表），并在状态行明示失败原因。拉取中有转圈，成功/失败与
+     * “已是最新/已更新到某日”都有明确反馈。
+     */
+    fun refreshFeed() {
+        if (feedUpdating) return
+        feedUpdating = true
+        feedStatus = "设备列表：正在拉取最新列表…"
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val request = okhttp3.Request.Builder()
+                    .url(FirmwareFeed.FEED_URL)
+                    .header("User-Agent", "tokifontspro/${BuildConfig.VERSION_NAME}")
+                    .build()
+                val text = client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) error("拉取设备列表失败 HTTP ${response.code}")
+                    response.body?.string() ?: error("设备列表是空的")
+                }
+                val previousCount = activeFeedEntryCount()
+                when (val result = FirmwareFeed.validateFeed(text, previousCount)) {
+                    is FirmwareFeed.FeedValidation.Valid -> {
+                        val updatedAt = FirmwareFeed.updatedAtOf(result.json)
+                        val alreadyLatest = updatedAt != null && updatedAt == feedUpdatedAt
+                        FirmwareSupport.useTables(FirmwareFeed.feedToTables(result.json))
+                        runCatching { feedCacheFile().writeText(text) }
+                        onMain {
+                            feedUpdating = false
+                            feedUpdatedAt = updatedAt
+                            feedStatus = if (alreadyLatest) {
+                                "设备列表：已是最新（${updatedAt}）"
+                            } else {
+                                "设备列表：已更新到 ${updatedAt ?: "未知日期"}"
+                            }
+                            checkSystemFontDevice()
+                            flash(feedStatus.removePrefix("设备列表："))
+                        }
+                    }
+                    is FirmwareFeed.FeedValidation.Invalid -> {
+                        onMain {
+                            feedUpdating = false
+                            feedStatus = "设备列表更新失败，用的${if (FirmwareSupport.usingBuiltinTables()) "内置列表" else "上一次好的列表"}（${feedUpdatedAt ?: BUILTIN_FEED_DATE}）：${result.reason}"
+                            flash("更新失败，用的还是原来的设备列表")
+                        }
+                    }
+                }
+            } catch (error: Throwable) {
+                onMain {
+                    feedUpdating = false
+                    feedStatus = "设备列表更新失败，用的${if (FirmwareSupport.usingBuiltinTables()) "内置列表" else "上一次好的列表"}（${feedUpdatedAt ?: BUILTIN_FEED_DATE}）：${error.message ?: "无网络"}"
+                    flash("更新失败：${error.message ?: "无网络"}，用的还是原来的设备列表")
+                }
+            }
+        }
+    }
+
+    // ---- 保守内嵌一键 root（第 2 步主路；执行链未接通前只做预检）----
+    /** Shizuku 是否正在运行（pingBinder 结果）：null = 还没检查。 */
+    var sysFontShizukuRunning by mutableStateOf<Boolean?>(null)
+        private set
+    /** 内嵌一键 root 的运行状态（见 [EmbeddedRootState]：只有三种诚实状态）。 */
+    var embeddedRootState by mutableStateOf(EmbeddedRootState.IDLE)
+        private set
+    /** 最近一次预检的逐项结果（界面直接展示）。 */
+    var embeddedRootChecks by mutableStateOf<List<EmbeddedRootCheck>>(emptyList())
+        private set
+    /** 内嵌产物是否都在（assets/embed/ 逐个试读的结果）。 */
+    var embeddedRootAssetsPresent by mutableStateOf<Map<String, Boolean>>(emptyMap())
+        private set
+    /** 一次启动只跑一次的守卫（98260 的硬规则）。 */
+    val embeddedRootGuard = EmbeddedRootAttemptGuard()
+
+    /** 试读 assets/embed/ 下的内嵌产物，缺哪个就记哪个（不读内容，只确认在位）。 */
+    fun checkEmbeddedAssets() {
+        val assets = getApplication<Application>().assets
+        embeddedRootAssetsPresent = EmbeddedAssets.ALL.associateWith { path ->
+            runCatching { assets.open(path).close() }.isSuccess
+        }
+    }
+
+    /**
+     * 内嵌一键 root：只跑预检，不执行 exploit。
+     * 预检全过 → [EmbeddedRootState.READY_NOT_WIRED]：执行链（Shizuku UserService
+     * 胶水 + 载荷加载器）尚未接通，本版停在这里，绝不假装能跑；
+     * 预检不过 → [EmbeddedRootState.FAILED]，只报失败原因；失败后没有“立即重试”
+     * 按钮（98260 失败要完整重启手机才能再试，见预检项）。
+     */
+    fun runEmbeddedRootPrecheck() {
+        checkWizardApps()
+        embeddedRootState = EmbeddedRootState.CHECKING
+        if (embeddedRootAssetsPresent.isEmpty()) checkEmbeddedAssets()
+        val device = sysFontDevice
+        if (device == null) checkSystemFontDevice()
+        val checks = embeddedRootPrecheck(
+            recommendation = sysFontToolRecommendation,
+            shizukuRunning = sysFontShizukuRunning,
+            calibratedConfirmed = sysFontCalibratedConfirmed,
+            guard = embeddedRootGuard,
+            embeddedAssetsPresent = embeddedRootAssetsPresent,
+        )
+        embeddedRootChecks = checks
+        embeddedRootState = if (checks.allPassed()) {
+            EmbeddedRootState.READY_NOT_WIRED
+        } else {
+            EmbeddedRootState.FAILED
+        }
+    }
+
+    /**
+     * 第 4 步可视化管理之“调整并重新安装”：改脚本开关或粗细后，
+     * 重新生成模块 + 重装 + 重启 zygote，一次点完。字体文件不重下
+     * （已下载且校验通过的直接复用）；任何一步失败都走自动取消
+     * （停、清理、状态复位、只报失败原因），与一键流程同款。
+     */
+    fun adjustAndReinstallModule() {
+        if (sysFontWorking) return
+        val selected = enabledSystemFontScripts()
+        if (selected.isEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont("至少选一个语种") }
+            return
+        }
+        if (!sysFontInstallAllowed()) {
+            viewModelScope.launch(Dispatchers.IO) { autoCancelSystemFont("设备未通过检查，或待验证固件还没勾选风险确认，无法重新安装") }
+            return
+        }
+        sysFontWorking = true
+        sysFontError = null
+        sysFontVerifyWarning = null
+        sysFontStep = "正在重新生成模块…"
+        viewModelScope.launch(Dispatchers.IO) {
+            generateSystemFontModuleInternal(selected)?.let { autoCancelSystemFont(it); return@launch }
+            onMain { sysFontStep = "正在重新安装并软重启…" }
+            val installed = installSystemFontModuleInternal()
+            if (installed.error != null) {
+                autoCancelSystemFont(
+                    installed.error,
+                    moduleWritten = installed.moduleWritten,
+                    postVerifyFailed = installed.postVerifyFailed,
+                )
+                return@launch
+            }
+            onMain {
+                sysFontWorking = false
+                sysFontStep = null
+                sysFontProgress = 1f
+                sysFontModuleState = SystemFontModuleState.INSTALLED
+                flash("已按新的开关与粗细重新安装，系统字体已更新")
+            }
+        }
+    }
+
     /** 五档语种开关（默认全开，SharedPreferences 持久化）。 */
     var sysFontScripts by mutableStateOf<Map<SystemFontScript, Boolean>>(
         SystemFontScript.entries.associateWith { it.defaultEnabled },
@@ -144,10 +395,10 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         private set
     /** 组合字体文件目录（应用私有目录，不进 FontStore 的 fonts/ 目录）。 */
     val sysFontDir: File = File(app.filesDir, "system-font").apply { mkdirs() }
-    /** 模块 staging 目录（生成后由此经 su 安装到 /data/adb/modules/tokifonts-font）。 */
+    /** 模块 staging 目录（生成后由此经 su 安装到 /data/adb/modules/tokifontspro-font）。 */
     val sysFontStagingDir: File = File(app.filesDir, "system-font-module")
     /** ksud 安装用的模块 zip（staging 打包后放这里）。 */
-    val sysFontZipFile: File = File(sysFontDir, "tokifonts-font.zip")
+    val sysFontZipFile: File = File(sysFontDir, "tokifontspro-font.zip")
     private var sysFontJob: Job? = null
 
     /** 安装器仓库的 Release 列表（按工具 id 缓存，只取最近 5 个版本）。 */
@@ -187,6 +438,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             }
         }
         loadCatalog()
+        loadCachedFeed()
     }
 
     /** 目录加载失败后，错误页的“重试”按钮走这里。 */
@@ -696,7 +948,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             val rooted = runCatching { SystemFontShell.checkRoot() }.getOrDefault(false)
             sysFontRoot = rooted
             sysFontRootChecking = false
-            if (!rooted) flash("没有检测到 root，请先用 RootMyS24 取得 root")
+            if (!rooted) flash("没有检测到 root，请先在第 2 步用内嵌一键 root 或 RootMyS24 取得 root")
         }
     }
 
@@ -828,7 +1080,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
         connection.connectTimeout = 30_000
         connection.readTimeout = 120_000
         connection.instanceFollowRedirects = true
-        connection.setRequestProperty("User-Agent", "tokifonts/${BuildConfig.VERSION_NAME}")
+        connection.setRequestProperty("User-Agent", "tokifontspro/${BuildConfig.VERSION_NAME}")
         try {
             connection.connect()
             if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
@@ -896,7 +1148,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
                 val rooted = runCatching { SystemFontShell.checkRoot() }.getOrDefault(false)
                 onMain { sysFontRoot = rooted }
                 if (!rooted) {
-                    autoCancelSystemFont("没有检测到 root，请先用 RootMyS24 取得 root 再点一键换字体")
+                    autoCancelSystemFont("没有检测到 root，请先在第 2 步用内嵌一键 root 或 RootMyS24 取得 root 再点一键换字体")
                     return@launch
                 }
             }
@@ -928,7 +1180,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
      * 失败自动取消（硬规则，决策见 [SystemFont.planCancel]）：
      * 一键 / 分步流程里任何一步不通过，整个操作自动取消——立刻停止、清理 staging、
      * 状态复位到未生成，界面只显示失败原因，绝不出现“装了一半卡住”的状态。
-     * [moduleWritten]：本次操作已把模块写到 /data/adb/modules/tokifonts-font
+     * [moduleWritten]：本次操作已把模块写到 /data/adb/modules/tokifontspro-font
      * （安装步跑过，无论成败）→ 先删模块目录再报错。
      * [postVerifyFailed]：模块已装上但装后验证失败 → 自动回滚（删模块 + 重启 zygote）再报错。
      * 除回滚外不重启 zygote（新字体根本没挂上）。
@@ -946,8 +1198,8 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             if (plan.restartZygote) {
                 val outcome = runCatching { SystemFontShell.rollback() }.getOrNull()
                 when {
-                    outcome == null -> extraNote = "自动回滚执行失败，请手动进 KernelSU 管理器关掉「Inter」模块，或执行 adb shell rm -rf /data/adb/modules/tokifonts-font 后重启"
-                    !outcome.moduleRemoved -> extraNote = "自动回滚也没能删掉模块：${outcome.error ?: "未知错误"}，请手动进 KernelSU 管理器关掉「Inter」模块，或执行 adb shell rm -rf /data/adb/modules/tokifonts-font 后重启"
+                    outcome == null -> extraNote = "自动回滚执行失败，请手动进 KernelSU 管理器关掉「Inter」模块，或执行 adb shell rm -rf /data/adb/modules/tokifontspro-font 后重启"
+                    !outcome.moduleRemoved -> extraNote = "自动回滚也没能删掉模块：${outcome.error ?: "未知错误"}，请手动进 KernelSU 管理器关掉「Inter」模块，或执行 adb shell rm -rf /data/adb/modules/tokifontspro-font 后重启"
                     !outcome.zygoteOk -> {
                         needsReboot = true
                         extraNote = outcome.error ?: "模块已删，但软重启 zygote 没确认，请重启手机"
@@ -1321,6 +1573,9 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     }
 
     companion object {
+        /** 内置 feed 表的日期（docs/firmware-support.json 的 updatedAt，种子转录日）。 */
+        const val BUILTIN_FEED_DATE = "2026-11-24"
+
         private const val KEY_THEME = "theme"
         private const val KEY_DYNAMIC = "dynamic"
         private const val KEY_SEED = "seed"

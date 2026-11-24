@@ -3,10 +3,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 四步向导要检测这三个应用是否已装（Android 11+ 没有 queries 声明就查不到）： -->
+    <!-- Shizuku / KernelSU Manager / root-my-s24 / Root-My-Galaxy（包名已从上游 build.gradle.kts 核实，见 InstallWizard.kt）。 -->
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="me.weishu.kernelsu" />
+        <package android:name="cn.nanoturtle.rootmys9280" />
+        <package android:name="dev.busung.s25uroot" />
+    </queries>
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="tokifonts"
+        android:label="TokiFontsPro"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Tokifonts"
@@ -22,7 +30,7 @@
         </activity>
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.ichiyotsu.tokifonts.files"
+            android:authorities="com.ichiyotsu.tokifontspro.files"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

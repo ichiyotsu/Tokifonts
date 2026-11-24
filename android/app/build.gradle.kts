@@ -9,12 +9,12 @@ android {
     compileSdk = 37
     buildToolsVersion = "37.0.0"
     defaultConfig {
-        applicationId = "com.ichiyotsu.tokifonts"
+        applicationId = "com.ichiyotsu.tokifontspro"
         // TokiUI android.md：目标 Android 16 及以上（minSdk 36）。
         minSdk = 36
         targetSdk = 37
-        versionCode = 10
-        versionName = "0.1.9"
+        versionCode = 1
+        versionName = "0.1.0"
     }
     buildTypes {
         release {
@@ -81,6 +81,8 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.tukaani:xz:1.10")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // Shizuku API（本地 AAR：构建 --offline 拉不到 Maven，见 docs/embed-inventory.md §C）。
+    implementation(files("libs/shizuku-api-13.1.5.aar", "libs/shizuku-aidl-13.1.5.aar", "libs/shizuku-shared-13.1.5.aar"))
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")

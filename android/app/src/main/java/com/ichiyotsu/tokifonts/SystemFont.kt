@@ -23,7 +23,7 @@ import org.w3c.dom.Node
  *
  * 锁定决策：
  * - 只做 KSU magic mount（bind 覆盖），绝不写 /system 或任何系统分区；
- *   回滚 = 删 /data/adb/modules/tokifonts-font + 重启 zygote（或重启手机）。
+ *   回滚 = 删 /data/adb/modules/tokifontspro-font + 重启 zygote（或重启手机）。
  * - 组合字体 = 全字重覆盖，每语种按字重一个文件；“组合” = 字体文件 +
  *   设备上生成的 fonts.xml，不是合成一个 TTF。
  * - 生成规则：解析设备原 fonts.xml，把 sans-serif 系列 family 里每一条
@@ -199,10 +199,10 @@ data class DeviceCheck(
 )
 
 object SystemFont {
-    const val MODULE_ID = "tokifonts-font"
-    /** 组合字体包的名字就叫 Inter（id 保持 tokifonts-font 不变）。 */
+    const val MODULE_ID = "tokifontspro-font"
+    /** 组合字体包的名字就叫 Inter；旧 id tokifonts-font 是 Main 轨（TokiFonts）的模块，Pro 轨改用 tokifontspro-font，两者不得混用。 */
     const val MODULE_NAME = "Inter"
-    const val MODULE_DIR = "/data/adb/modules/tokifonts-font"
+    const val MODULE_DIR = "/data/adb/modules/tokifontspro-font"
 
     /** 支持机型白名单（Build.MODEL，大写比对）。 */
     val SUPPORTED_MODELS: Set<String> = setOf(
@@ -405,6 +405,15 @@ object SystemFont {
         val major = match.groupValues[1].toIntOrNull() ?: return null
         val minor = match.groupValues[2].toIntOrNull() ?: return null
         return major to minor
+    }
+
+    /**
+     * 从 os.version 取三段式内核版本（如 "6.1.145-android14-11-00001" → "6.1.145"）；
+     * Root-My-Galaxy 的匹配规则要求三段精确比对，取不到返回 null。
+     */
+    fun parseKernelFullVersion(kernelVersion: String): String? {
+        val match = Regex("""(\d+)\.(\d+)\.(\d+)""").find(kernelVersion.trim()) ?: return null
+        return "${match.groupValues[1]}.${match.groupValues[2]}.${match.groupValues[3]}"
     }
 
     /**

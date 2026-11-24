@@ -59,7 +59,7 @@ internal val InstallerTools = listOf(
         repo = "fahadalijaved/SamFonts",
         steps = listOf(
             "点上面的「下载安装包」安装 SamFonts。三星可能会弹出 Knox 提示，按你自己的判断处理。",
-            "在 tokifonts 里把要用的字体保存到「下载」，或点「用其他应用打开」。",
+            "在 TokiFontsPro 里把要用的字体保存到「下载」，或点「用其他应用打开」。",
             "打开 SamFonts，按应用里的字体方式来。没有 root 时先试它提供的普通方式；已经跑着 Shizuku 时，再在应用里改用 Shizuku 并授权。",
             "选中字体并安装。然后到系统设置的显示、字体大小和样式里切换。",
         ),
@@ -76,7 +76,7 @@ internal val InstallerTools = listOf(
         repo = "fahadalijaved/SamFonts",
         steps = listOf(
             "点上面的「下载 Pro 安装包」，安装文件名带 SamFontsPro 的那一份，不要和普通版搞混。",
-            "之后的用法和 SamFonts 一样：从 tokifonts 导出字体文件，在 SamFonts Pro 里安装，再去系统字体设置里选用。",
+            "之后的用法和 SamFonts 一样：从 TokiFontsPro 导出字体文件，在 SamFonts Pro 里安装，再去系统字体设置里选用。",
         ),
         caution = "第三方网站上的「SamFonts Pro」安装包没有拿来当作官方来源。这里只用该仓库 Release 里的文件。",
     ),
@@ -91,7 +91,7 @@ internal val InstallerTools = listOf(
         repo = "zFont/Host",
         steps = listOf(
             "点上面的「下载 GitHub 版」安装。官网也写了应用商店地址，那是另一条分发渠道。",
-            "在 zFont 里导入 tokifonts 保存的 ttf 或 otf，或从它自己的字库里选。",
+            "在 zFont 里导入 TokiFontsPro 保存的 ttf 或 otf，或从它自己的字库里选。",
             "按手机品牌选对应的应用方式。zFont 的说明把 Shizuku 写成 Android 12 以后比较稳的一种文件处理方式。",
             "先预览，再应用。应用之后到系统的字体设置里确认。",
         ),
@@ -110,7 +110,7 @@ internal val InstallerTools = listOf(
             "先读仓库 README，确认你的机型和固件在它列出的范围内。不匹配就不要安装。",
             "点上面的「打开 Releases」：Release 里有好几份安装包，按项目说明选对应机型的那一份。",
             "这个工具的目的是取得 KernelSU。取得之后，重启可能会失效，细节以项目自己的说明为准。",
-            "字体仍然要交给 SamFonts 或 zFont 这类安装器。tokifonts 只负责把字体文件下载到本机。",
+            "字体仍然要交给 SamFonts 或 zFont 这类安装器。TokiFontsPro 只负责把字体文件下载到本机。",
         ),
         caution = "可能变砖、影响 Knox、丢数据，重启后也可能失效。本页不写利用细节。只在你自己的设备上、读完官方说明后再决定。",
     ),
@@ -127,7 +127,7 @@ internal val InstallerTools = listOf(
             "打开仓库，看它支持哪些机型和内核版本。应用会按机型和内核去选载荷，不在列表里就不要试。",
             "点上面的「打开 Releases」，从 Releases 安装它发布的包。项目写了可以用 Shizuku 作为其中一种运行方式。",
             "如果它报告 KernelSU 已经可用，再给换字体应用或 Shizuku 授权。",
-            "然后用 tokifonts 下载的字体，在 SamFonts 或 zFont 里安装。",
+            "然后用 TokiFontsPro 下载的字体，在 SamFonts 或 zFont 里安装。",
         ),
         caution = "这是改内核权限的工具，有变砖和保修风险。不要按照来源不明的帖子去改命令。以这个仓库的 README 为准。",
     ),
@@ -251,7 +251,7 @@ private val releasesHttp = OkHttpClient.Builder()
 fun fetchToolReleases(repo: String): List<ToolRelease> {
     val request = Request.Builder()
         .url("https://api.github.com/repos/$repo/releases?per_page=5")
-        .header("User-Agent", "tokifonts (https://github.com/ichiyotsu/Tokifonts)")
+        .header("User-Agent", "tokifontspro (https://github.com/ichiyotsu/Tokifonts)")
         .header("Accept", "application/vnd.github+json")
         .build()
     releasesHttp.newCall(request).execute().use { response ->

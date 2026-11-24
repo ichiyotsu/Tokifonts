@@ -23,7 +23,7 @@ data class ShellResult(
 sealed interface InstallOutcome {
     data class Success(val method: String) : InstallOutcome
     /**
-     * [moduleWritten]：安装步是否已对 /data/adb/modules/tokifonts-font 动过手
+     * [moduleWritten]：安装步是否已对 /data/adb/modules/tokifontspro-font 动过手
      * （ksud 安装或复制安装跑过，无论成败都可能留下半成品）；打包失败、staging
      * 缺失这类还没动目录的失败为 false。失败自动取消时按它决定要不要删模块目录。
      */
@@ -39,7 +39,7 @@ data class RollbackOutcome(
 
 object SystemFontShell {
     private const val TIMEOUT_MS = 15_000L
-    private const val MODULE_DIR = "/data/adb/modules/tokifonts-font"
+    private const val MODULE_DIR = "/data/adb/modules/tokifontspro-font"
 
     /** 在 Dispatchers.IO 上跑 `su -c <cmd>`，15 秒超时，读 stdout/stderr + exit code。 */
     suspend fun runAsRoot(cmd: String): ShellResult = withContext(Dispatchers.IO) {
@@ -84,7 +84,7 @@ object SystemFontShell {
     /**
      * 安装模块：先把 staging 打成 zip，再按顺序尝试两条路——
      * (1) ksud 可用时 `ksud module install <zip>`（ksud 吃 zip 不吃目录）；
-     * (2) 失败时回退到 `su cp -r` staging → /data/adb/modules/tokifonts-font。
+     * (2) 失败时回退到 `su cp -r` staging → /data/adb/modules/tokifontspro-font。
      * 任何一条路走完都要校验模块目录确实在位才算成功；两条都失败才报错。
      * zygote 绝不在模块未验证在位时重启（调用方只在 Success 后才重启）。
      */

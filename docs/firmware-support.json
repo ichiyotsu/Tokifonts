@@ -1,0 +1,1432 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24T07:07:52Z",
+  "generator": "seed transcribed 2026-11-24 from the local research snapshot (rmg-targets-v3.json + rms24-readme.md + FirmwareSupport.kt); later updates by .github/workflows/update-device-list.yml",
+  "sources": [
+    {
+      "name": "root-my-s24 README",
+      "url": "https://raw.githubusercontent.com/NanoTurtle1145/root-my-s24/main/README.md",
+      "version": "v3.7.0-alpha.1",
+      "fetchedAt": "2026-11-24T07:07:52Z",
+      "note": "种子由 2026-11-24 本地研究快照转录，非 Action 实时拉取；上游 README 表格是已实测 / 已定标 / 移植三张表的来源"
+    },
+    {
+      "name": "Root-My-Galaxy-Payloads targets-v3.json",
+      "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/support/targets-v3.json",
+      "schemaVersion": 3,
+      "fetchedAt": "2026-11-24T07:07:52Z",
+      "note": "20 个 payload，逐条照抄 feed；feed 里没有固件构建号与 KernelSU 版本号"
+    },
+    {
+      "name": "FirmwareSupport.kt (app snapshot)",
+      "url": null,
+      "fetchedAt": "2026-11-24T07:07:52Z",
+      "note": "App 内表 2026-11-24 快照：31 行精确行 + 6 行移植系列 + recommendTool 等级 0–4；种子与该表逐条对过，W9023N 与 SM-S721B 两行仅 README 有、App 表未收录，已在 notes 里标出"
+    }
+  ],
+  "rules": {
+    "patched43499": [
+      {
+        "model": "SM-S9280",
+        "firmwareSuffixes": [
+          "DZJ3"
+        ],
+        "note": "DZJ3 已修复 CVE-2026-43499：GhostLock/43499 引擎不可用，只能走 98260 per-target 行；Root-My-Galaxy 的载荷只有 43499 这一条引擎，在此固件上也不可用"
+      }
+    ],
+    "crossModelCandidate": {
+      "fromModel": "SM-S9260",
+      "toModel": "SM-S9280",
+      "kernelLine": "6.1",
+      "note": "国行 S24+（SM-S9260）可用 S24 Ultra（SM-S9280）同构建号后缀（DZF2/DZG1/DZJ3）的载荷；已实测行优先，待验证（已定标）行作候选时按待验证对待，绝不能写成已实测"
+    },
+    "recommendationLevels": [
+      "0 = root-my-s24 精确行·已实测",
+      "1 = root-my-s24 精确行·待验证",
+      "2 = root-my-galaxy 载荷（机型 + 三段内核精确匹配，移植）",
+      "3 = root-my-s24 移植载荷表（系列 + 内核 + 固件后缀，移植）",
+      "4 = root-my-s24 跨机型候选（仅 root-my-s24 内，S9260 用 S9280 同构建号行）"
+    ]
+  },
+  "notes": [
+    "国行 DZF2 载荷自 v3.5.0 起覆盖 DZE2–DZH3（同一条 6.1.145 内核线）；外版 DZE2 载荷覆盖 DZE2–DZG1",
+    "EZIF 条目同时覆盖 EZJ1（S9280ZHS6EZJ1 / S928BXXS6EZJ1）：内核构建号同为 34343818，只是 userspace 更新",
+    "美版 S24 系列（SM-S921U / S926U1 / S928U / S928U1）暂不支持",
+    "98260 引擎一次开机只运行一次，失败请重启后重试；GhostLock 失败可多试"
+  ],
+  "entries": [
+    {
+      "id": "rms24-S9280ZCS6DZF2",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 国行",
+      "firmwareBuild": "S9280ZCS6DZF2",
+      "matchKeys": [
+        "S9280ZCS6DZF2"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9280ZCS6DZH3",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 国行",
+      "firmwareBuild": "S9280ZCS6DZH3",
+      "matchKeys": [
+        "S9280ZCS6DZH3"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9280ZCS6DZG1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 国行",
+      "firmwareBuild": "S9280ZCS6DZG1",
+      "matchKeys": [
+        "S9280ZCS6DZG1"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9280ZHS6DZE2",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 港版/台版",
+      "firmwareBuild": "S9280ZHS6DZE2",
+      "matchKeys": [
+        "S9280ZHS6DZE2"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9280ZHS6DZH3",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 港版/台版",
+      "firmwareBuild": "S9280ZHS6DZH3",
+      "matchKeys": [
+        "S9280ZHS6DZH3"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9210ZCS6DZI1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9210",
+      "modelLabel": "SM-S9210 国行",
+      "firmwareBuild": "S9210ZCS6DZI1",
+      "matchKeys": [
+        "S9210ZCS6DZI1"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9260ZHS6DZG1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9260",
+      "modelLabel": "SM-S9260 台版",
+      "firmwareBuild": "S9260ZHS6DZG1",
+      "matchKeys": [
+        "S9260ZHS6DZG1"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "单设备实测（issue #3），港台 DZE2 载荷"
+    },
+    {
+      "id": "rms24-F741NKSS4DZE1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-F741N",
+      "modelLabel": "SM-F741N 韩版 Z Flip6",
+      "firmwareBuild": "F741NKSS4DZE1",
+      "matchKeys": [
+        "F741NKSS4DZE1"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-SM-F9580-shared-DZF2",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-F9580",
+      "modelLabel": "SM-F9580 国行 Z Fold6",
+      "firmwareBuild": "共用 DZF2",
+      "matchKeys": [
+        "DZF2"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "与 SM-S9280 共用 DZF2 载荷"
+    },
+    {
+      "id": "rms24-S928BXXU6EZIF",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版 S24 Ultra One UI 9.0",
+      "firmwareBuild": "S928BXXU6EZIF",
+      "matchKeys": [
+        "S928BXXU6EZIF"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": ""
+    },
+    {
+      "id": "rms24-S9280ZHU6EZIF",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 港版/国行 One UI 9.0",
+      "firmwareBuild": "S9280ZHU6EZIF",
+      "matchKeys": [
+        "S9280ZHU6EZIF"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "KSU 3.2.5 驱动"
+    },
+    {
+      "id": "rms24-S921EXXU3DZIF",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S921E",
+      "modelLabel": "SM-S921E 国际版 S24 One UI 9.0",
+      "firmwareBuild": "S921EXXU3DZIF",
+      "matchKeys": [
+        "S921EXXU3DZIF"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "与 EZIF 同内核构建 34343818"
+    },
+    {
+      "id": "rms24-S928BXXS6EZJ1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版",
+      "firmwareBuild": "S928BXXS6EZJ1",
+      "matchKeys": [
+        "S928BXXS6EZJ1"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "同内核构建 34343818"
+    },
+    {
+      "id": "rms24-S928BXXU6EZJB",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版",
+      "firmwareBuild": "S928BXXU6EZJB",
+      "matchKeys": [
+        "S928BXXU6EZJB"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "同内核构建 34343818，userspace 更新"
+    },
+    {
+      "id": "rms24-S928BXXU6EZJD",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版",
+      "firmwareBuild": "S928BXXU6EZJD",
+      "matchKeys": [
+        "S928BXXU6EZJD"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "同内核构建 34343818，userspace 更新"
+    },
+    {
+      "id": "rms24-S9280ZHS6EZJ1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 港版/国行",
+      "firmwareBuild": "S9280ZHS6EZJ1",
+      "matchKeys": [
+        "S9280ZHS6EZJ1"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "专用 EZJ1 条目"
+    },
+    {
+      "id": "rms24-F9560ZCS4DZH5",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-F9560",
+      "modelLabel": "SM-F9560 港版 Z Fold6",
+      "firmwareBuild": "F9560ZCS4DZH5",
+      "matchKeys": [
+        "F9560ZCS4DZH5"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "共用 DZF2 载荷"
+    },
+    {
+      "id": "rms24-F956NKSU4EZIH",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-F956N",
+      "modelLabel": "SM-F956N 韩版 Z Fold6",
+      "firmwareBuild": "F956NKSU4EZIH",
+      "matchKeys": [
+        "F956NKSU4EZIH"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "共用 EZIF 载荷"
+    },
+    {
+      "id": "rms24-W9025ZCS4DZH5",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "W9025",
+      "modelLabel": "W9025 国行 W25",
+      "firmwareBuild": "W9025ZCS4DZH5",
+      "matchKeys": [
+        "W9025ZCS4DZH5"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "共用 DZF2 载荷"
+    },
+    {
+      "id": "rms24-W9025ZCS4DZG3",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "W9025",
+      "modelLabel": "W9025 国行 W25",
+      "firmwareBuild": "W9025ZCS4DZG3",
+      "matchKeys": [
+        "W9025ZCS4DZG3"
+      ],
+      "kernel": "6.1.145",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "已实测",
+      "source": "rms24-readme:tested",
+      "notes": "共用 DZF2 载荷"
+    },
+    {
+      "id": "rms24-S9280ZHS4CZA1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 港版/台版",
+      "firmwareBuild": "S9280ZHS4CZA1",
+      "matchKeys": [
+        "S9280ZHS4CZA1"
+      ],
+      "kernel": "6.1.128",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "港台共用"
+    },
+    {
+      "id": "rms24-S9280ZCS4CZA1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 国行",
+      "firmwareBuild": "S9280ZCS4CZA1",
+      "matchKeys": [
+        "S9280ZCS4CZA1"
+      ],
+      "kernel": "6.1.128",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "数据段偏移 +0x10000"
+    },
+    {
+      "id": "rms24-S9280ZCS4CZB2",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 国行",
+      "firmwareBuild": "S9280ZCS4CZB2",
+      "matchKeys": [
+        "S9280ZCS4CZB2"
+      ],
+      "kernel": "6.1.128",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "独立定标 + 32525 ksud"
+    },
+    {
+      "id": "rms24-S9210ZCU4BYH7",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9210",
+      "modelLabel": "SM-S9210 国行 One UI 7",
+      "firmwareBuild": "S9210ZCU4BYH7",
+      "matchKeys": [
+        "S9210ZCU4BYH7"
+      ],
+      "kernel": "6.1.99",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "6.1.145 之前代际"
+    },
+    {
+      "id": "rms24-S9310ZCSCCZG1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9310",
+      "modelLabel": "SM-S9310 国行 S25 One UI 8.5",
+      "firmwareBuild": "S9310ZCSCCZG1",
+      "matchKeys": [
+        "S9310ZCSCCZG1"
+      ],
+      "kernel": "6.6.98",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "Android 15 内核线，独立载荷"
+    },
+    {
+      "id": "rms24-S9360ZCSCCZG1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9360",
+      "modelLabel": "SM-S9360 国行 S25+ One UI 8.5",
+      "firmwareBuild": "S9360ZCSCCZG1",
+      "matchKeys": [
+        "S9360ZCSCCZG1"
+      ],
+      "kernel": "6.6.98",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "Android 15 内核线，独立载荷"
+    },
+    {
+      "id": "rms24-S9380ZCSCCZG1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9380",
+      "modelLabel": "SM-S9380 国行 S25 Ultra One UI 8.5",
+      "firmwareBuild": "S9380ZCSCCZG1",
+      "matchKeys": [
+        "S9380ZCSCCZG1"
+      ],
+      "kernel": "6.6.98",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "Android 15 内核线，独立载荷"
+    },
+    {
+      "id": "rms24-S928BXXS4CZA1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版 One UI 8.0",
+      "firmwareBuild": "S928BXXS4CZA1",
+      "matchKeys": [
+        "S928BXXS4CZA1"
+      ],
+      "kernel": "6.1.128",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "与港版 CZA1 同构建号但 .rodata 差 8 字节，不可互换"
+    },
+    {
+      "id": "rms24-S928BXXU4BYD9",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版 One UI 7.0",
+      "firmwareBuild": "S928BXXU4BYD9",
+      "matchKeys": [
+        "S928BXXU4BYD9"
+      ],
+      "kernel": "6.1.99",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "独立定标"
+    },
+    {
+      "id": "rms24-S928BXXU4AXK5",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S928B",
+      "modelLabel": "SM-S928B 欧版 One UI 6.1",
+      "firmwareBuild": "S928BXXU4AXK5",
+      "matchKeys": [
+        "S928BXXU4AXK5"
+      ],
+      "kernel": "6.1.75",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "本 App 支持的最早 6.1 代际"
+    },
+    {
+      "id": "rms24-S9280ZCS6DZJ3",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S9280",
+      "modelLabel": "SM-S9280 国行",
+      "firmwareBuild": "S9280ZCS6DZJ3",
+      "matchKeys": [
+        "S9280ZCS6DZJ3"
+      ],
+      "kernel": "6.1.145",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "社区定标（PR #44），手动 staging 真机 root 成功；App 内待验证"
+    },
+    {
+      "id": "rms24-W9023ZCSAIZF1",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "W9023N",
+      "modelLabel": "W9023N 国行 心系天下 W23",
+      "firmwareBuild": "W9023ZCSAIZF1",
+      "matchKeys": [
+        "W9023ZCSAIZF1"
+      ],
+      "kernel": "5.10.236",
+      "engine": "GhostLock",
+      "driver": "KernelSU 3.3.0（实验）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "仅上游 README 有（beta，cape/SM8450，Android 12），App 内 FirmwareSupport.kt 未收录；进 App 表前需核对"
+    },
+    {
+      "id": "rms24-S721BXXUEEZIF",
+      "tool": "root-my-s24",
+      "kind": "exact",
+      "model": "SM-S721B",
+      "modelLabel": "SM-S721B 欧版 S24 FE",
+      "firmwareBuild": "S721BXXUEEZIF",
+      "matchKeys": [
+        "S721BXXUEEZIF"
+      ],
+      "kernel": "6.1.162",
+      "engine": "98260 UAF",
+      "driver": "KernelSU 3.2.5（默认）",
+      "status": "待验证",
+      "source": "rms24-readme:calibrated",
+      "notes": "仅上游 README 有：静态定标完成（issue #49），EZIF 结构体布局完全一致，仅换符号/site，待真机验证；App 内表未收录"
+    },
+    {
+      "id": "rmg-galaxy-s25-series-2026-06-07",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "galaxy-s25-series-2026-06-07",
+      "displayName": "Galaxy S25 series | Kernel 6.6.98",
+      "model": null,
+      "models": [
+        "SM-S9310",
+        "SM-S931B",
+        "SM-S931N",
+        "SM-S931Q",
+        "SM-S931U",
+        "SM-S931U1",
+        "SM-S931W",
+        "SM-S931Z",
+        "SC-51F",
+        "SCG31",
+        "SM-S936B",
+        "SM-S936N",
+        "SM-S936U",
+        "SM-S936U1",
+        "SM-S936W",
+        "SM-S937B",
+        "SM-S937N",
+        "SM-S937U",
+        "SM-S937U1",
+        "SM-S937W",
+        "SM-S9380",
+        "SM-S938B",
+        "SM-S938N",
+        "SM-S938Q",
+        "SM-S938U",
+        "SM-S938U1",
+        "SM-S938W",
+        "SM-S938Z",
+        "SC-52F",
+        "SCG32"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.98",
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/pa3q-S938NKSUACZF1/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-pa2q-S9360ZCSCCZG1",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "pa2q-S9360ZCSCCZG1",
+      "displayName": "Galaxy S25+ | Kernel 6.6.98",
+      "model": null,
+      "models": [
+        "SM-S9360"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.98",
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/pa2q-S9360ZCSCCZG1/cve-2026-43499-app.so",
+        "size": 125904
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-psq-S9370ZCS9CZG1",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "psq-S9370ZCS9CZG1",
+      "displayName": "Galaxy S25 Edge | Kernel 6.6.98",
+      "model": null,
+      "models": [
+        "SM-S9370"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.98",
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/psq-S9370ZCS9CZG1/cve-2026-43499-app.so",
+        "size": 125264
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-q7q-F966USQU9BZDN",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "q7q-F966USQU9BZDN",
+      "displayName": "Galaxy Z Fold 7 | Kernel 6.6.98",
+      "model": null,
+      "models": [
+        "SM-F966U",
+        "SM-F966U1"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.98",
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/q7q-F966USQU9BZDN/cve-2026-43499-app.so",
+        "size": 111216
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-q7q-F966USQSBBZG3",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "q7q-F966USQSBBZG3",
+      "displayName": "Galaxy Z Fold 7 (SM-F966U BZG3) | Kernel 6.6.98",
+      "model": null,
+      "models": [
+        "SM-F966U"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.98",
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/q7q-F966USQSBBZG3/cve-2026-43499-app.so",
+        "size": 126264
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-q7q-F966BXXSBBZG3",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "q7q-F966BXXSBBZG3",
+      "displayName": "Galaxy Z Fold 7 (SM-F966B) | Kernel 6.6.98",
+      "model": null,
+      "models": [
+        "SM-F966B"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.98",
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/q7q-F966BXXSBBZG3/cve-2026-43499-app.so",
+        "size": 125872
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-e3q-S928USQS6DZF2",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "e3q-S928USQS6DZF2",
+      "displayName": "Galaxy S24 Ultra | Kernel 6.1.145",
+      "model": null,
+      "models": [
+        "SM-S928U1",
+        "SM-S928W"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.145",
+      "kernelVersions": [
+        "6.1.145"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/e3q-S928USQS6DZF2/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S928USQS6DZF2-kdp",
+        "size": 4998352
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-e3q-S928BXXS6DZF2",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "e3q-S928BXXS6DZF2",
+      "displayName": "Galaxy S24 Ultra (International) | Kernel 6.1.145",
+      "model": null,
+      "models": [
+        "SM-S928B"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.145",
+      "kernelVersions": [
+        "6.1.145"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/e3q-S928BXXS6DZF2/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S928BXXS6DZF2-kdp",
+        "size": 4748232
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-e2s-S926BXXUEDZDR",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "e2s-S926BXXUEDZDR",
+      "displayName": "Galaxy S24+ | Kernel 6.1.157",
+      "model": null,
+      "models": [
+        "SM-S926B"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.157",
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/e2s-S926BXXUEDZDR/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e2s-S926BXXUEDZDR-kdp",
+        "size": 4780056
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-e1s-S921BXXSFDZE1",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "e1s-S921BXXSFDZE1",
+      "displayName": "Galaxy S24 | Kernel 6.1.157",
+      "model": null,
+      "models": [
+        "SM-S921B"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.157",
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/e1s-S921BXXSFDZE1/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e1s-S921BXXSFDZE1-kdp",
+        "size": 4920520
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-essi-A566EXXSCCZG6",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "essi-A566EXXSCCZG6",
+      "displayName": "Galaxy A56 5G | Kernel 6.6.102",
+      "model": null,
+      "models": [
+        "SM-A5660",
+        "SM-A566B",
+        "SM-A566E",
+        "SM-A566S",
+        "SM-A566U1",
+        "SM-A566W"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.102",
+      "kernelVersions": [
+        "6.6.102"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/essi-A566EXXSCCZG6/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A566EXXSCCZG6-kdp",
+        "size": 4765336
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-a36xq-A366WVLS3AYG1",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "a36xq-A366WVLS3AYG1",
+      "displayName": "Galaxy A36 5G | Kernel 6.6.46",
+      "model": null,
+      "models": [
+        "SM-A366W"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.6.46",
+      "kernelVersions": [
+        "6.6.46"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/a36xq-A366WVLS3AYG1/cve-2026-43499-app.so",
+        "size": 128688
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A366WVLS3AYG1-kdp",
+        "size": 4889120
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-dm3q-S918BXXSAFZF5",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "dm3q-S918BXXSAFZF5",
+      "displayName": "Galaxy S23 Ultra SM-S918B | Kernel 5.15.189 (S918BXXSAFZF5)",
+      "model": null,
+      "models": [
+        "SM-S918B"
+      ],
+      "firmwareBuild": null,
+      "kernel": "5.15.189",
+      "kernelVersions": [
+        "5.15.189"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/dm3q-S918BXXSAFZF5/cve-2026-43499-app.so",
+        "size": 133344
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm3q-S918BXXSAFZF5-kdp",
+        "size": 4879560
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-a53x-A536EXXSNGZG3",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "a53x-A536EXXSNGZG3",
+      "displayName": "Galaxy A53 5G | Kernel 5.10.237",
+      "model": null,
+      "models": [
+        "SM-A536E"
+      ],
+      "firmwareBuild": null,
+      "kernel": "5.10.237",
+      "kernelVersions": [
+        "5.10.237"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/a53x-A536EXXSNGZG3/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A536EXXSNGZG3-kdp",
+        "size": 4870752
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-dm3q-S9180ZHS8FZF5",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "dm3q-S9180ZHS8FZF5",
+      "displayName": "Galaxy S23 Ultra | Kernel 5.15.189",
+      "model": null,
+      "models": [
+        "SM-S9180",
+        "SM-S918N",
+        "SM-S918Q",
+        "SM-S918U",
+        "SM-S918W",
+        "SM-S918U1"
+      ],
+      "firmwareBuild": null,
+      "kernel": "5.15.189",
+      "kernelVersions": [
+        "5.15.189"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/dm3q-S9180ZHS8FZF5/cve-2026-43499-app.so",
+        "size": 137728
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm3q-S9180ZHS8FZF5-kdp",
+        "size": 4556352
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-e1s-S921NKSSFDZF3",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "e1s-S921NKSSFDZF3",
+      "displayName": "Galaxy S24 | Kernel 6.1.157",
+      "model": null,
+      "models": [
+        "SM-S921N"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.157",
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/e1s-S921NKSSFDZF3/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e1s-S921NKSSFDZF3-kdp",
+        "size": 4758872
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-dm1q-S911U1UES6DYI3",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "dm1q-S911U1UES6DYI3",
+      "displayName": "Galaxy S23 (base) | Kernel 5.15.153 | tracefs/MCAST route",
+      "model": null,
+      "models": [
+        "SM-S911U1"
+      ],
+      "firmwareBuild": null,
+      "kernel": "5.15.153",
+      "kernelVersions": [
+        "5.15.153"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/dm1q-S911U1UES6DYI3/cve-2026-43499-app.so",
+        "size": 130168
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm1q-S911U1UES6DYI3-kdp",
+        "size": 4758792
+      },
+      "requiresFreshP0Session": false,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-r12s-S721BXXSCDZF3",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "r12s-S721BXXSCDZF3",
+      "displayName": "Galaxy S24 FE | Kernel 6.1.157",
+      "model": null,
+      "models": [
+        "SM-S721B"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.157",
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/r12s-S721BXXSCDZF3/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-r12s-S721BXXSCDZF3-kdp",
+        "size": 6419768
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-gts9-X710XXS6EZF1",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "gts9-X710XXS6EZF1",
+      "displayName": "Galaxy Tab S9 SM-X710 | Kernel 5.15.189 (X710XXS6EZF1)",
+      "model": null,
+      "models": [
+        "SM-X710"
+      ],
+      "firmwareBuild": null,
+      "kernel": "5.15.189",
+      "kernelVersions": [
+        "5.15.189"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/gts9-X710XXS6EZF1/cve-2026-43499-app.so",
+        "size": 132688
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-gts9-X710XXS6EZF1-kdp",
+        "size": 4783256
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rmg-e3q-S9280ZCS6DZF2",
+      "tool": "root-my-galaxy",
+      "kind": "exact",
+      "payloadId": "e3q-S9280ZCS6DZF2",
+      "displayName": "Galaxy S24 Ultra China | Kernel 6.1.145 (S9280ZCS6DZF2)",
+      "model": null,
+      "models": [
+        "SM-S9280"
+      ],
+      "firmwareBuild": null,
+      "kernel": "6.1.145",
+      "kernelVersions": [
+        "6.1.145"
+      ],
+      "engine": "GhostLock (CVE-2026-43499)",
+      "driver": "随载荷提供（KernelSU 工件）",
+      "status": "移植",
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/artifacts/e3q-S9280ZCS6DZF2/cve-2026-43499-app.so",
+        "size": 104128
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S9280ZCS6DZF2-kdp",
+        "size": 4879856
+      },
+      "requiresFreshP0Session": true,
+      "source": "rmg-targets-v3",
+      "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测"
+    },
+    {
+      "id": "rms24-ported-S23",
+      "tool": "root-my-s24",
+      "kind": "ported-series",
+      "series": "S23",
+      "model": null,
+      "modelPrefixes": [
+        "SM-S9110",
+        "SM-S9160",
+        "SM-S9180"
+      ],
+      "firmwareBuild": "FZE3 / FZG1",
+      "firmwareSuffixes": [
+        "FZE3",
+        "FZG1"
+      ],
+      "kernel": "5.15",
+      "kernels": [
+        "5.15"
+      ],
+      "engine": null,
+      "driver": null,
+      "status": "移植",
+      "regions": "国行 FZE3 / FZG1，港版 FZE3+",
+      "source": "rms24-readme:ported",
+      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准"
+    },
+    {
+      "id": "rms24-ported-S24",
+      "tool": "root-my-s24",
+      "kind": "ported-series",
+      "series": "S24",
+      "model": null,
+      "modelPrefixes": [
+        "SM-S9210",
+        "SM-S9260",
+        "SM-S9280"
+      ],
+      "firmwareBuild": "DZE2 / DZF2 / DZG1",
+      "firmwareSuffixes": [
+        "DZE2",
+        "DZF2",
+        "DZG1"
+      ],
+      "kernel": "6.1.145",
+      "kernels": [
+        "6.1"
+      ],
+      "engine": null,
+      "driver": null,
+      "status": "移植",
+      "regions": "国行 DZE2 / DZF2 / DZG1，港台 DZG1",
+      "source": "rms24-readme:ported",
+      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准"
+    },
+    {
+      "id": "rms24-ported-S25",
+      "tool": "root-my-s24",
+      "kind": "ported-series",
+      "series": "S25",
+      "model": null,
+      "modelPrefixes": [
+        "SM-S9310",
+        "SM-S9360",
+        "SM-S9370",
+        "SM-S9380"
+      ],
+      "firmwareBuild": "BZA1 / BZC1 / CZF1 / CZG1",
+      "firmwareSuffixes": [
+        "BZA1",
+        "BZC1",
+        "CZF1",
+        "CZG1"
+      ],
+      "kernel": "6.6",
+      "kernels": [
+        "6.6"
+      ],
+      "engine": null,
+      "driver": null,
+      "status": "移植",
+      "regions": "国行 BZA1 / BZC1 / CZF1 / CZG1，港版 CZG1",
+      "source": "rms24-readme:ported",
+      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准"
+    },
+    {
+      "id": "rms24-ported-S26",
+      "tool": "root-my-s24",
+      "kind": "ported-series",
+      "series": "S26",
+      "model": null,
+      "modelPrefixes": [
+        "SM-S9420",
+        "SM-S9470",
+        "SM-S9480"
+      ],
+      "firmwareBuild": "AZG1",
+      "firmwareSuffixes": [
+        "AZG1"
+      ],
+      "kernel": "6.12",
+      "kernels": [
+        "6.12"
+      ],
+      "engine": null,
+      "driver": null,
+      "status": "移植",
+      "regions": "国行 AZG1",
+      "source": "rms24-readme:ported",
+      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准"
+    },
+    {
+      "id": "rms24-ported-折叠屏",
+      "tool": "root-my-s24",
+      "kind": "ported-series",
+      "series": "折叠屏",
+      "model": null,
+      "modelPrefixes": [
+        "SM-F73",
+        "SM-F74",
+        "SM-F76",
+        "SM-F94",
+        "SM-F95",
+        "SM-F96"
+      ],
+      "firmwareBuild": null,
+      "firmwareSuffixes": [],
+      "kernel": "5.15 / 6.1 / 6.6",
+      "kernels": [
+        "5.15",
+        "6.1",
+        "6.6"
+      ],
+      "engine": null,
+      "driver": null,
+      "status": "移植",
+      "regions": "Z Flip5/6/7、Z Fold5/6/7 国行，F956U 美版，F966B 欧版",
+      "source": "rms24-readme:ported",
+      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准"
+    },
+    {
+      "id": "rms24-ported-心系天下",
+      "tool": "root-my-s24",
+      "kind": "ported-series",
+      "series": "心系天下",
+      "model": null,
+      "modelPrefixes": [
+        "W9025",
+        "SM-W9025",
+        "W9026",
+        "SM-W9026"
+      ],
+      "firmwareBuild": "DZF2 / DZG3 / BZG3 / BZF1",
+      "firmwareSuffixes": [
+        "DZF2",
+        "DZG3",
+        "BZG3",
+        "BZF1"
+      ],
+      "kernel": "6.1 / 6.6",
+      "kernels": [
+        "6.1",
+        "6.6"
+      ],
+      "engine": null,
+      "driver": null,
+      "status": "移植",
+      "regions": "W25 DZF2/DZG3、W26 BZG3/BZF1",
+      "source": "rms24-readme:ported",
+      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准"
+    }
+  ]
+}

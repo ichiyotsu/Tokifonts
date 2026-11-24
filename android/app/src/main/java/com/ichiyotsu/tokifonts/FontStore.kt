@@ -163,7 +163,7 @@ class FontStore(private val context: Context) {
     }
 
     private fun fetch(faceId: String, url: String, dest: File, onProgress: (Float) -> Unit) {
-        val request = Request.Builder().url(url).header("User-Agent", "tokifonts/${BuildConfig.VERSION_NAME}").build()
+        val request = Request.Builder().url(url).header("User-Agent", "tokifontspro/${BuildConfig.VERSION_NAME}").build()
         val call = client.newCall(request)
         calls[faceId] = call
         try {
