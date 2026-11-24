@@ -6,6 +6,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'pro-v*'
 
 
 permissions:
@@ -64,26 +65,98 @@ jobs:
           find /home/runner /usr/lib/android-sdk -name "debug.keystore" 2>/dev/null | while read -r f; do echo "== $f"; keytool -list -v -keystore "$f" -storepass android 2>/dev/null | grep -E "SHA256" || echo "(unreadable)"; done
 
 
+      # 分流：tag 决定走 Main 还是 Pro（两棵树放同一份文件，靠 tag 前缀分轨）。
+      # - pro-v* → 版本 = 去掉 pro-v 前缀，应用名 TokiFontsPro，
+      #   资产 TokiFontsPro-<版本>.apk；并校验树里 applicationId 必须是
+      #   com.ichiyotsu.tokifontspro 且 versionName 等于 tag 版本，不符直接失败
+      #   （防串轨：pro-v* 的 tag 绝不能编出 Main 的包）。
+      # - v* → 版本 = 去掉 v 前缀，应用名 TokiFonts，资产 TokiFonts-<版本>.apk；
+      #   同样校验 applicationId com.ichiyotsu.tokifonts 与 versionName。
+      # - workflow_dispatch（无 tag）：按树里 applicationId 决定前缀命名
+      #   （tokifontspro → TokiFontsPro-，否则 TokiFonts-），版本取 gradle versionName。
+      # release 标题 CI 不管：v* 沿用旧行为（name = 版本号）；pro-v* 不传 name，
+      # 标题由发版时在 web UI 填“Pro X.Y.Z”（首版“Pro 0.1.0”）。
+      - name: Resolve release track and asset name
+        id: track
+        run: |
+          APP_ID=$(grep -oP 'applicationId\s*=\s*"\K[^"]+' android/app/build.gradle.kts)
+          GRADLE_VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts)
+          echo "tree applicationId=$APP_ID gradle versionName=$GRADLE_VERSION ref=$GITHUB_REF_NAME"
+          if [ -z "$APP_ID" ] || [ -z "$GRADLE_VERSION" ]; then
+            echo "ERROR: cannot read applicationId/versionName from android/app/build.gradle.kts"; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            case "$GITHUB_REF_NAME" in
+              pro-v*)
+                VERSION="${GITHUB_REF_NAME#pro-v}"
+                APP_NAME="TokiFontsPro"
+                EXPECTED_APP_ID="com.ichiyotsu.tokifontspro"
+                RELEASE_NAME=""
+                ;;
+              v*)
+                VERSION="${GITHUB_REF_NAME#v}"
+                APP_NAME="TokiFonts"
+                EXPECTED_APP_ID="com.ichiyotsu.tokifonts"
+                RELEASE_NAME="$VERSION"
+                ;;
+              *)
+                echo "ERROR: unexpected tag $GITHUB_REF_NAME (want v* or pro-v*)"; exit 1
+                ;;
+            esac
+            if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "ERROR: tag version '$VERSION' is not X.Y.Z"; exit 1
+            fi
+            if [ "$APP_ID" != "$EXPECTED_APP_ID" ]; then
+              echo "ERROR: track mismatch: tag $GITHUB_REF_NAME expects applicationId $EXPECTED_APP_ID but tree has $APP_ID (wrong track, refusing to build the other app's package)"; exit 1
+            fi
+            if [ "$GRADLE_VERSION" != "$VERSION" ]; then
+              echo "ERROR: version mismatch: tag $GITHUB_REF_NAME expects versionName $VERSION but tree has $GRADLE_VERSION"; exit 1
+            fi
+          else
+            VERSION="$GRADLE_VERSION"
+            if [ "$APP_ID" = "com.ichiyotsu.tokifontspro" ]; then
+              APP_NAME="TokiFontsPro"
+            else
+              APP_NAME="TokiFonts"
+            fi
+            RELEASE_NAME="$VERSION"
+          fi
+          ASSET="${APP_NAME}-${VERSION}.apk"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "app_name=$APP_NAME" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+          echo "Resolved: app=$APP_NAME version=$VERSION asset=$ASSET"
+
+
       - name: Prepare APK asset
         id: apk
         run: |
-          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          cp android/app/build/outputs/apk/release/app-release.apk "TokiFonts-${VERSION}.apk"
-          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "TokiFonts-${VERSION}.apk" | head -n 1
-          ls -lh "TokiFonts-${VERSION}.apk"
+          ASSET="${{ steps.track.outputs.asset }}"
+          echo "version=${{ steps.track.outputs.version }}" >> "$GITHUB_OUTPUT"
+          cp android/app/build/outputs/apk/release/app-release.apk "$ASSET"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$ASSET" | head -n 1
+          ls -lh "$ASSET"
 
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TokiFonts-${{ steps.apk.outputs.version }}
-          path: TokiFonts-${{ steps.apk.outputs.version }}.apk
+          name: ${{ steps.track.outputs.app_name }}-${{ steps.track.outputs.version }}
+          path: ${{ steps.track.outputs.asset }}
 
 
-      - name: Attach APK to release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Attach APK to release (Main track)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.apk.outputs.version }}
-          files: TokiFonts-${{ steps.apk.outputs.version }}.apk
+          name: ${{ steps.track.outputs.release_name }}
+          files: ${{ steps.track.outputs.asset }}
+
+
+      # Pro 轨：不传 name，release 标题由发版时在 web UI 填“Pro X.Y.Z”，CI 不管标题。
+      - name: Attach APK to release (Pro track)
+        if: startsWith(github.ref, 'refs/tags/pro-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.track.outputs.asset }}
