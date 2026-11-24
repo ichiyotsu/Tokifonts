@@ -27,8 +27,6 @@ data class FontFace(
     val mirrorRepo: String,
     val mirrorRef: String,
     val mirrorPath: String,
-    /** 额外的备用下载地址（jsDelivr 镜像等，不走 raw.githubusercontent.com）。 */
-    val extraUrls: List<String> = emptyList(),
 ) {
     fun usableExt(): String = when {
         innerName.endsWith(".otf", true) -> "otf"
@@ -43,7 +41,7 @@ data class FontFace(
         } else {
             listOf(FontUrls.raw(mirrorRepo, mirrorRef, mirrorPath))
         }
-        return listOf(primary) + mirror + extraUrls
+        return listOf(primary) + mirror
     }
 }
 
@@ -94,16 +92,6 @@ data class Catalog(
 ) {
     fun family(id: String) = families.firstOrNull { it.id == id }
     fun face(id: String) = families.asSequence().flatMap { it.faces }.firstOrNull { it.id == id }
-
-    /**
-     * 换系统字体用的苹方 face：按语种 + 设备字重取最近档（与
-     * [SystemFontScript.fileForWeight] 同一条最近字重规则，距离相同取更粗档）。
-     * 只查本地 catalog，不下载；缺文件时调用方的安装门禁拦住。
-     */
-    fun systemFontFace(script: SystemFontScript, weight: Int): FontFace? {
-        val faceId = script.fileForWeight(weight).catalogFaceId ?: return null
-        return face(faceId)
-    }
 
     companion object {
         /**
@@ -219,11 +207,6 @@ data class Catalog(
 object FontUrls {
     fun raw(repo: String, ref: String, path: String): String {
         return "https://raw.githubusercontent.com/$repo/$ref/${encodePath(path)}"
-    }
-
-    /** jsDelivr 的 GitHub 镜像：raw.githubusercontent.com 503 时的备用下载地址。 */
-    fun jsdelivr(repo: String, ref: String, path: String): String {
-        return "https://cdn.jsdelivr.net/gh/$repo@$ref/${encodePath(path)}"
     }
 
     private fun encodePath(path: String): String = path.split("/").joinToString("/") { segment ->

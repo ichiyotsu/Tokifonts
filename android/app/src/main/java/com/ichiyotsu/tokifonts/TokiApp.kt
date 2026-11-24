@@ -197,8 +197,6 @@ private fun TokiAppContent(
         vm.tab == 1 && vm.installPage.startsWith("releases:") ->
             InstallerTools.firstOrNull { it.id == vm.installPage.removePrefix("releases:") }?.name ?: "版本"
         vm.tab == 1 && vm.installPage == "tutorials" -> "教程"
-        vm.tab == 1 && vm.installPage == "resources" -> "资源库"
-        vm.tab == 1 && vm.installPage == "supported-devices" -> "支持设备"
         vm.tab == 1 -> "安装"
         vm.tab == 2 && vm.settingsPage == "files" -> "字体文件"
         else -> "设置"
@@ -208,8 +206,6 @@ private fun TokiAppContent(
         vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> { { vm.installPage = "tutorials" } }
         vm.tab == 1 && vm.installPage.startsWith("releases:") -> { { vm.installPage = "fonts" } }
         vm.tab == 1 && vm.installPage == "tutorials" -> { { vm.installPage = "fonts" } }
-        vm.tab == 1 && vm.installPage == "resources" -> { { vm.installPage = "fonts" } }
-        vm.tab == 1 && vm.installPage == "supported-devices" -> { { vm.installPage = "fonts" } }
         vm.tab == 2 && vm.settingsPage == "files" -> { { vm.settingsPage = "main" } }
         else -> null
     }
@@ -223,8 +219,6 @@ private fun TokiAppContent(
         vm.tab == 1 && vm.installPage.startsWith("tutorial:") -> vm.installPage
         vm.tab == 1 && vm.installPage.startsWith("releases:") -> vm.installPage
         vm.tab == 1 && vm.installPage == "tutorials" -> "tutorials"
-        vm.tab == 1 && vm.installPage == "resources" -> "resources"
-        vm.tab == 1 && vm.installPage == "supported-devices" -> "supported-devices"
         vm.tab == 1 -> "install"
         vm.tab == 2 && vm.settingsPage == "files" -> "settings-files"
         else -> "settings"
@@ -273,9 +267,7 @@ private fun TokiAppContent(
                 key.startsWith("tutorial:") -> InstallTutorial(vm, key.removePrefix("tutorial:"), padding)
                 key.startsWith("releases:") -> InstallToolReleases(vm, key.removePrefix("releases:"), padding)
                 key == "tutorials" -> InstallTutorialIndex(vm, padding)
-                key == "resources" -> InstallResourcesScreen(vm, padding)
-                key == "supported-devices" -> SupportedDevicesScreen(vm, padding)
-                key == "install" -> SystemFontScreen(vm, padding)
+                key == "install" -> InstallResourcesScreen(vm, padding)
                 key == "settings-files" -> FontFileManagerScreen(vm, padding)
                 else -> SettingsScreen(vm, padding)
             }

@@ -45,10 +45,10 @@ tag 使用 `v` 前缀，例如 `v0.1.0`、`v0.1.1-b1`。带 `-b` 的 tag 发布�
 
 ## 获取和使用
 
-仓库地址是 [github.com/ichiyotsu/Tokifonts](https://github.com/ichiyotsu/Tokifonts)。默认分支是 `Pro`。
+仓库地址是 [github.com/ichiyotsu/Tokifonts](https://github.com/ichiyotsu/Tokifonts)。默认分支是 `Main`。
 
 ```bash
-git clone --depth 1 --branch Pro https://github.com/ichiyotsu/Tokifonts.git
+git clone --depth 1 --branch Main https://github.com/ichiyotsu/Tokifonts.git
 ```
 
 2026-11-11 的 `Pro`：`.git` 压缩包约 331 MB，检出的 `Fonts/` 约 529 MB。

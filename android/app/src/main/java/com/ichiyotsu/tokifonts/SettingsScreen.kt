@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
     val catalog = vm.catalog
     var confirmClear by remember { mutableStateOf(false) }
+    var confirmUninstallModule by remember { mutableStateOf(false) }
     val downloaded = catalog?.families?.flatMap { it.faces }?.count { vm.status(it.id) is FaceStatus.Ready } ?: 0
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(padding.asPagePadding()),
@@ -134,6 +135,35 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
             ) {
                 Text("清除下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
+            Text(
+                "之前版本换过系统字体的话，手机里可能还装着 Inter 字体模块。换字体功能已移除，这里只能把它卸掉，恢复原厂字体。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = { confirmUninstallModule = true },
+                enabled = !vm.uninstallWorking,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            ) {
+                Text(
+                    if (vm.uninstallWorking) "正在卸载…" else "卸载已装字体模块",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            if (vm.uninstallNeedsReboot) {
+                Text(
+                    "模块已删，但软重启没确认，请重启手机让原厂字体生效。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = vm::rebootPhone,
+                    modifier = Modifier.heightIn(min = 56.dp),
+                ) {
+                    Text("重启手机", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            }
         }
         Section(title = "关于") {
             Text("TokiFonts", style = MaterialTheme.typography.headlineMedium)
@@ -153,6 +183,20 @@ fun SettingsScreen(vm: FontsViewModel, padding: PaddingValues) {
                 }) { Text("清除") }
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
+        )
+    }
+    if (confirmUninstallModule) {
+        AlertDialog(
+            onDismissRequest = { confirmUninstallModule = false },
+            title = { Text("卸载已装字体模块") },
+            text = { Text("删掉已装的 Inter 字体模块（/data/adb/modules/tokifonts-font），然后软重启 zygote，恢复原厂字体。需要 root 授权；没有装模块时会直接提示，不做任何改动。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmUninstallModule = false
+                    vm.uninstallInstalledModule()
+                }) { Text("卸载") }
+            },
+            dismissButton = { TextButton(onClick = { confirmUninstallModule = false }) { Text("取消") } },
         )
     }
 }
