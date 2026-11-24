@@ -1,0 +1,428 @@
+# 每日设备列表更新（Pro 轨专用）
+#
+# 每天从两个上游公开来源重新生成 docs/firmware-support.json：
+#   1. root-my-s24 README（已实测 / 已定标 / 移植三张表）
+#      https://raw.githubusercontent.com/NanoTurtle1145/root-my-s24/main/README.md
+#   2. Root-My-Galaxy-Payloads 的 feed（schema 3）
+#      https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/support/targets-v3.json
+#
+# 安全原则（写死在流程里，不要绕过）：
+#   - 只用公开 raw URL + curl，不用任何 token；上游拉取失败 → 本步直接失败，
+#     绝不写文件、绝不提交。
+#   - 先解析到临时文件、完整校验通过后才替换 docs/firmware-support.json；
+#     校验失败 → 失败退出，保留上一次好的 JSON。
+#   - 只有 JSON 真变了才提交回 Pro 分支；没变化就什么都不做。
+#   - 人工写的 notes 按 entry id 带回新文件（id 生成规则见
+#     docs/firmware-support-SCHEMA.md，不要改）。
+#
+# 注意：定时任务（schedule）只在仓库默认分支上的 workflow 文件生效。
+# 如果 Pro 不是默认分支，cron 不会触发——此时每天手动 workflow_dispatch，
+# 或把本文件同步一份到默认分支再由它提交回 Pro。手动触发在 Pro 分支上
+# 永远可用。
+#
+# 本文件只动 docs/firmware-support.json，不碰 android-release.yml 或任何
+# 已有 workflow 文件（tag / CI 分轨的事在 HOLD，别碰）。
+
+name: update-device-list
+
+on:
+  schedule:
+    # 每天 18:00 UTC = 次日 02:00（UTC+8）
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-device-list
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Pro branch
+        uses: actions/checkout@v4
+        with:
+          ref: Pro
+
+      - name: Fetch upstream sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/device-list
+          curl --fail --silent --show-error --location --max-time 60 \
+            -o /tmp/device-list/rms24-readme.md \
+            https://raw.githubusercontent.com/NanoTurtle1145/root-my-s24/main/README.md
+          curl --fail --silent --show-error --location --max-time 60 \
+            -o /tmp/device-list/rmg-targets-v3.json \
+            https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/support/targets-v3.json
+          test -s /tmp/device-list/rms24-readme.md
+          test -s /tmp/device-list/rmg-targets-v3.json
+          grep -q "### 已实测成功" /tmp/device-list/rms24-readme.md
+          grep -q "### 已定标" /tmp/device-list/rms24-readme.md
+          grep -q "### 移植载荷" /tmp/device-list/rms24-readme.md
+
+      - name: Regenerate docs/firmware-support.json
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re, sys
+          from datetime import datetime, timezone
+
+          README = "/tmp/device-list/rms24-readme.md"
+          RMG = "/tmp/device-list/rmg-targets-v3.json"
+          OLD = "docs/firmware-support.json"
+          NEW = "docs/firmware-support.json.new"
+
+          def fail(msg):
+              print(f"ERROR: {msg}", file=sys.stderr)
+              sys.exit(1)
+
+          # ---------- README 表格解析 ----------
+          # 实际表格结构（root-my-s24 README v3.7.0-alpha.1）：
+          #   已实测 / 已定标表：| 机型 | 固件 | 内核 | 载荷 | 状态 |
+          #     机型格如 "SM-S9280（国行 DZF2）"，固件格如 "S9280ZCS6DZF2"，
+          #     也可能是 "共用 DZF2"、"S928BXXU6EZJB / …EZJD"（一行两个构建号，
+          #     "…" 表示沿用上一构建号的前缀）、"SM-S9310/S9360/S9380" +
+          #     "S9310/S9360/S9380ZCSCCZG1"（机型与固件都以 "/" 并列，
+          #     后段省略了公共前缀 / 后缀，需按位展开）。
+          #     注意机型格括号里的 "W25" 是系列简称，不是机型——
+          #     机型只取 "（" 前的部分，且 W 系机型是 W + 4 位数字。
+          #   移植表：| 系列 | 平台/内核 | 覆盖 |
+          #     系列格如 "S23（S9110/S9160/S9180）"；覆盖格如
+          #     "国行 FZE3 / FZG1，港版 FZE3+"，固件后缀从覆盖格里提取。
+          # 任何一张表解析不到行、或某行展开失败就报错退出，
+          # 绝不生成半份 JSON。
+          with open(README, encoding="utf-8") as f:
+              lines = f.read().splitlines()
+
+          def section_rows(header_substr):
+              """取某个 ### 小节下的表格行（去掉表头与分隔行）。"""
+              start = None
+              for i, ln in enumerate(lines):
+                  if ln.startswith("###") and header_substr in ln:
+                      start = i
+                      break
+              if start is None:
+                  fail(f"README 里找不到小节：{header_substr}")
+              rows = []
+              for ln in lines[start + 1:]:
+                  if ln.startswith("###") or ln.startswith("## "):
+                      break
+                  if not ln.startswith("|"):
+                      continue
+                  cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+                  if any("---" in c for c in cells):
+                      continue
+                  if cells and cells[0] in ("机型", "系列"):
+                      continue
+                  rows.append(cells)
+              return rows
+
+          def clean(text):
+              return text.replace("**", "").strip()
+
+          MODEL_RE = re.compile(r"SM-[A-Z0-9]+|W[0-9]{4}[A-Z]?")
+
+          def model_num(model):
+              """机型对应的固件号前缀，如 SM-S9380 → S9380，W9023N → W9023。"""
+              n = model[3:] if model.startswith("SM-") else model
+              if len(n) > 1 and n[-1].isalpha() and n[-2].isdigit():
+                  n = n[:-1]
+              return n
+
+          def parse_device_table(rows, status, source):
+              entries = []
+              for cells in rows:
+                  if len(cells) < 5:
+                      fail(f"设备表行只有 {len(cells)} 列（要 5 列）：{' | '.join(cells)}")
+                  model_cell, fw_cell, kernel_cell, payload_cell, state_cell = (
+                      clean(cells[0]), clean(cells[1]), clean(cells[2]),
+                      clean(cells[3]), clean(cells[4]),
+                  )
+                  # 机型只取 "（" 前的部分（括号里是地区说明，"W25" 只是系列简称）。
+                  # "/" 并列时后段可能省略公共前缀，如 "SM-S9310/S9360/S9380"。
+                  model_part = model_cell.split("（")[0].strip()
+                  model_tokens = [t.strip() for t in model_part.split("/") if t.strip()]
+                  if not model_tokens:
+                      fail(f"机型格里提不到机型：{model_cell}")
+                  models = []
+                  for tok in model_tokens:
+                      if MODEL_RE.fullmatch(tok):
+                          models.append(tok)
+                      elif models and len(tok) < len(models[0]):
+                          models.append(models[0][: len(models[0]) - len(tok)] + tok)
+                      else:
+                          fail(f"机型格展开失败：{model_cell}")
+                  for m in models:
+                      if not MODEL_RE.fullmatch(m):
+                          fail(f"展开后的机型不合法：{m}（行：{model_cell}）")
+                  kernel = clean(kernel_cell)
+                  if not re.fullmatch(r"\d+\.\d+(\.\d+)?", kernel):
+                      fail(f"内核格不是版本号：{kernel}（行：{model_cell}）")
+                  engine = (
+                      "98260 UAF"
+                      if "98260" in payload_cell or "98260" in state_cell or kernel == "6.1.162"
+                      else "GhostLock"
+                  )
+                  # 内核 6.1.162 是 One UI 9.0 线，一律走 98260：README 里
+                  # S928B EZIF 与 F956N EZIH 两行的载荷格只写了旧文件名
+                  #（cve-2026-43499-…），没写引擎名，只看载荷格会误判成
+                  # GhostLock + 3.3.0 驱动——而 3.3.0 在 6.1.162 上会让
+                  # system_server 崩溃循环，所以内核是第二判定依据。
+                  driver = "KernelSU 3.2.5（默认）" if engine == "98260 UAF" else "KernelSU 3.3.0（实验）"
+                  # 固件格按 "/" 展开，有两种省略写法：
+                  #   (a) "…EZJD"：沿用上一构建号的前缀；
+                  #   (b) "S9310/S9360/S9380ZCSCCZG1"：前段省略公共后缀，
+                  #       最后一段是完整构建号，后缀 = 最后一段去掉机型号段。
+                  #   另外 "共用 DZF2" 是合法的特殊写法：整格即构建号，
+                  #   匹配键取 "共用" 后面的载荷标识。
+                  fw_tokens = [t.strip() for t in fw_cell.split("/") if t.strip()]
+                  if not fw_tokens:
+                      fail(f"固件格为空：{model_cell}")
+                  firmwares = []
+                  if fw_cell.strip().startswith("共用"):
+                      firmwares = [fw_cell.strip()]
+                  elif len(fw_tokens) == 1:
+                      firmwares = [fw_tokens[0].lstrip("…")]
+                  elif fw_tokens[-1].startswith("…"):
+                      firmwares = [fw_tokens[0].lstrip("…")]
+                      for tok in fw_tokens[1:]:
+                          if not tok.startswith("…"):
+                              firmwares.append(tok)
+                              continue
+                          suffix = tok.lstrip("…")
+                          prev = firmwares[-1]
+                          if len(suffix) >= len(prev):
+                              fail(f"固件格 … 展开失败：{fw_cell}")
+                          firmwares.append(prev[: len(prev) - len(suffix)] + suffix)
+                  else:
+                      last = fw_tokens[-1]
+                      last_num = model_num(models[-1])
+                      if not last.startswith(last_num):
+                          fail(f"固件格最后一段 {last} 与机型 {models[-1]} 对不上：{model_cell} / {fw_cell}")
+                      suffix = last[len(last_num):]
+                      for tok in fw_tokens[:-1]:
+                          tok = tok.lstrip("…")
+                          if tok.endswith(suffix) or len(tok) >= len(last):
+                              firmwares.append(tok)
+                          else:
+                              firmwares.append(tok + suffix)
+                      firmwares.append(last)
+                  for fw in firmwares:
+                      if fw.startswith("共用"):
+                          continue
+                      if not re.fullmatch(r"[A-Z0-9]+", fw) or len(fw) < 4:
+                          fail(f"展开后的固件构建号不合法：{fw}（行：{model_cell} / {fw_cell}）")
+                  if len(models) == len(firmwares):
+                      pairs = list(zip(models, firmwares))
+                  elif len(models) == 1:
+                      pairs = [(models[0], fw) for fw in firmwares]
+                  elif len(firmwares) == 1:
+                      pairs = [(m, firmwares[0]) for m in models]
+                  else:
+                      fail(f"机型数（{len(models)}）与固件数（{len(firmwares)}）对不上：{model_cell} / {fw_cell}")
+                  notes = state_cell
+                  if payload_cell.startswith("同 ") or "共用" in payload_cell:
+                      notes = f"{payload_cell}；{state_cell}" if state_cell else payload_cell
+                  for model, fw in pairs:
+                      shared = fw.startswith("共用")
+                      entries.append({
+                          "id": "rms24-" + (fw if not shared else model + "-shared-" + fw[2:].strip()),
+                          "tool": "root-my-s24",
+                          "kind": "exact",
+                          "model": model,
+                          "modelLabel": model_cell,
+                          "firmwareBuild": fw,
+                          "matchKeys": [fw[2:].strip()] if shared else [fw],
+                          "kernel": kernel,
+                          "engine": engine,
+                          "driver": driver,
+                          "status": status,
+                          "source": source,
+                          "notes": notes,
+                      })
+              return entries
+
+          # 移植表：README 只有三列，modelPrefixes 与 kernels 在 README 里写不全，
+          # 按 App 内表（FirmwareSupport.kt PORTED_PAYLOADS）的映射写死；
+          # 上游新增系列不在映射里时直接失败，等人工补映射，绝不猜前缀。
+          PORTED_STATIC = {
+              "S23": (["SM-S9110", "SM-S9160", "SM-S9180"], ["5.15"], "5.15"),
+              "S24": (["SM-S9210", "SM-S9260", "SM-S9280"], ["6.1"], "6.1.145"),
+              "S25": (["SM-S9310", "SM-S9360", "SM-S9370", "SM-S9380"], ["6.6"], "6.6"),
+              "S26": (["SM-S9420", "SM-S9470", "SM-S9480"], ["6.12"], "6.12"),
+              "折叠屏": (["SM-F73", "SM-F74", "SM-F76", "SM-F94", "SM-F95", "SM-F96"],
+                       ["5.15", "6.1", "6.6"], "5.15 / 6.1 / 6.6"),
+              "心系天下": (["W9025", "SM-W9025", "W9026", "SM-W9026"],
+                        ["6.1", "6.6"], "6.1 / 6.6"),
+          }
+          SUFFIX_RE = re.compile(r"[A-Z]{2,}[0-9][A-Z0-9]{0,2}")
+
+          def parse_ported_table(rows):
+              entries = []
+              for cells in rows:
+                  if len(cells) < 3:
+                      fail(f"移植表行只有 {len(cells)} 列（要 3 列）：{' | '.join(cells)}")
+                  series_cell, platform_cell, regions = clean(cells[0]), clean(cells[1]), clean(cells[2])
+                  series = series_cell.split("（")[0].strip()
+                  if series not in PORTED_STATIC:
+                      fail(f"移植表出现未知系列「{series}」：请人工确认 modelPrefixes 与 kernels 后再补映射")
+                  prefixes, kernels, klabel = PORTED_STATIC[series]
+                  if len(kernels) == 1 and not clean(platform_cell).startswith(kernels[0]):
+                      fail(f"移植表 {series} 的平台/内核（{platform_cell}）与已知映射 {kernels[0]} 对不上")
+                  suffixes = []
+                  for tok in SUFFIX_RE.findall(regions.replace("+", "")):
+                      if len(tok) == 4 and tok not in suffixes:
+                          suffixes.append(tok)
+                  entries.append({
+                      "id": "rms24-ported-" + series,
+                      "tool": "root-my-s24",
+                      "kind": "ported-series",
+                      "series": series,
+                      "model": None,
+                      "modelPrefixes": prefixes,
+                      "firmwareBuild": " / ".join(suffixes) if suffixes else None,
+                      "firmwareSuffixes": suffixes,
+                      "kernel": klabel,
+                      "kernels": kernels,
+                      "engine": None,
+                      "driver": None,
+                      "status": "移植",
+                      "regions": regions,
+                      "source": "rms24-readme:ported",
+                      "notes": "移植载荷：运行时按 KASLR 定标，需在 RootMyS24 设置里打开「启用未经测试的载荷」才显示；引擎与驱动以 RootMyS24 内实际载荷为准",
+                  })
+              return entries
+
+          tested = parse_device_table(section_rows("已实测成功"), "已实测", "rms24-readme:tested")
+          calibrated = parse_device_table(section_rows("已定标"), "待验证", "rms24-readme:calibrated")
+          ported = parse_ported_table(section_rows("移植载荷"))
+          if not tested:
+              fail("已实测表解析到 0 行")
+          if not calibrated:
+              fail("已定标表解析到 0 行")
+          if not ported:
+              fail("移植载荷表解析到 0 行")
+
+          # ---------- RMG feed ----------
+          with open(RMG, encoding="utf-8") as f:
+              rmg = json.load(f)
+          if rmg.get("schemaVersion") != 3:
+              fail(f"RMG feed schemaVersion 不是 3（是 {rmg.get('schemaVersion')}）：结构可能变了，人工确认后再合入")
+          payloads = rmg.get("payloads") or []
+          if not payloads:
+              fail("RMG feed 里 payloads 为空")
+          rmg_entries = []
+          for p in payloads:
+              for key in ("payloadId", "displayName", "models", "kernelVersions"):
+                  if not p.get(key):
+                      fail(f"RMG payload 缺字段 {key}：{p.get('payloadId')}")
+              for art in ("exploit", "kernelsu"):
+                  if not p.get(art, {}).get("url") or not isinstance(p.get(art, {}).get("size"), int):
+                      fail(f"RMG payload {p['payloadId']} 的 {art} 缺 url/size")
+              rmg_entries.append({
+                  "id": "rmg-" + p["payloadId"],
+                  "tool": "root-my-galaxy",
+                  "kind": "exact",
+                  "payloadId": p["payloadId"],
+                  "displayName": p["displayName"],
+                  "model": None,
+                  "models": p["models"],
+                  "firmwareBuild": None,
+                  "kernel": p["kernelVersions"][0] if len(p["kernelVersions"]) == 1 else " / ".join(p["kernelVersions"]),
+                  "kernelVersions": p["kernelVersions"],
+                  "engine": "GhostLock (CVE-2026-43499)",
+                  "driver": "随载荷提供（KernelSU 工件）",
+                  "status": "移植",
+                  "exploit": p["exploit"],
+                  "kernelsu": p["kernelsu"],
+                  "requiresFreshP0Session": bool(p.get("requiresFreshP0Session", False)),
+                  "source": "rmg-targets-v3",
+                  "notes": "feed 无固件构建号：匹配只用机型 + 三段式内核；未经本 App / root-my-s24 真机实测",
+              })
+
+          entries = tested + calibrated + ported + rmg_entries
+          ids = [e["id"] for e in entries]
+          if len(ids) != len(set(ids)):
+              fail("生成出的 entry id 有重复")
+
+          # ---------- 带回旧文件的人工内容 ----------
+          try:
+              with open(OLD, encoding="utf-8") as f:
+                  old = json.load(f)
+          except FileNotFoundError:
+              fail("旧的 docs/firmware-support.json 不存在：种子文件丢了，先人工恢复再跑 Action")
+          if old.get("schemaVersion") != 1:
+              fail(f"旧 feed 的 schemaVersion 不是 1（是 {old.get('schemaVersion')}）：人工确认后再跑")
+          old_notes = {e["id"]: e.get("notes", "") for e in old.get("entries", [])}
+          for e in entries:
+              if e["id"] in old_notes and old_notes[e["id"]]:
+                  e["notes"] = old_notes[e["id"]]
+          old_count = len(old.get("entries", []))
+          if old_count and len(entries) < old_count * 0.5:
+              fail(f"新条目数（{len(entries)}）不到旧条目数（{old_count}）的一半：很可能是解析事故，拒绝覆盖")
+
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          feed = {
+              "schemaVersion": 1,
+              "updatedAt": now,
+              "generator": "generated by .github/workflows/update-device-list.yml",
+              "sources": [
+                  {
+                      "name": "root-my-s24 README",
+                      "url": "https://raw.githubusercontent.com/NanoTurtle1145/root-my-s24/main/README.md",
+                      "version": "v3.7.0-alpha.1",
+                      "fetchedAt": now,
+                      "note": "Action 每日拉取；上游 README 表格是已实测 / 已定标 / 移植三张表的来源",
+                  },
+                  {
+                      "name": "Root-My-Galaxy-Payloads targets-v3.json",
+                      "url": "https://raw.githubusercontent.com/BuSung-dev/Root-My-Galaxy-Payloads/main/support/targets-v3.json",
+                      "schemaVersion": 3,
+                      "fetchedAt": now,
+                      "note": "Action 每日拉取；feed 里没有固件构建号与 KernelSU 版本号",
+                  },
+                  {
+                      "name": "FirmwareSupport.kt (app snapshot)",
+                      "url": None,
+                      "fetchedAt": now,
+                      "note": "移植系列的 modelPrefixes 与 kernels 按 App 内表写死在 workflow 里（见 PORTED_STATIC），README 表格本身写不全",
+                  },
+              ],
+              "rules": old.get("rules", {}),
+              "notes": old.get("notes", []),
+              "entries": entries,
+          }
+
+          # ---------- 写临时文件并完整校验，通过后才替换 ----------
+          with open(NEW, "w", encoding="utf-8") as f:
+              json.dump(feed, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          with open(NEW, encoding="utf-8") as f:
+              check = json.load(f)
+          assert check["schemaVersion"] == 1, "schemaVersion 校验失败"
+          assert check["updatedAt"], "updatedAt 缺失"
+          assert check["entries"], "entries 为空"
+          assert len({e["id"] for e in check["entries"]}) == len(check["entries"]), "id 不唯一"
+          print(f"OK: {len(entries)} entries "
+                f"({len(tested)} tested, {len(calibrated)} calibrated, "
+                f"{len(ported)} ported-series, {len(rmg_entries)} rmg)")
+          PY
+
+      - name: Commit if changed
+        run: |
+          set -euo pipefail
+          # 只有校验通过的新文件才会走到这一步：先替换，再比对。
+          mv docs/firmware-support.json.new docs/firmware-support.json
+          if git diff --quiet -- docs/firmware-support.json; then
+            echo "No change in firmware-support.json; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          DATE="$(date -u +%Y-%m-%d)"
+          git add docs/firmware-support.json
+          git commit -m "chore(device-list): update firmware-support.json ${DATE} (root-my-s24 README + Root-My-Galaxy-Payloads targets-v3)"
+          git push origin HEAD:Pro
