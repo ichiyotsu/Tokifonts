@@ -53,6 +53,25 @@ jobs:
           keytool -list -v -keystore "$HOME/.config/.android/debug.keystore" -storepass android | grep -E "SHA256"
 
 
+      - name: Set up NDK r29 (ksud source build)
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r29
+
+      - name: Set up Rust stable (ksud source build)
+        run: |
+          rustup update stable
+          rustup target add aarch64-linux-android
+          cargo --version; rustc --version
+
+      - name: Build ksud from vendored source
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          chmod +x third-party/kernelsu/build-ksud.sh
+          ./third-party/kernelsu/build-ksud.sh
+
       - name: Build release APK
         working-directory: android
         run: |
