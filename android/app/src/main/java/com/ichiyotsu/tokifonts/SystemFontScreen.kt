@@ -260,13 +260,20 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
                         "正在预检…",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    EmbeddedRootState.READY_NOT_WIRED -> Text(
-                        "预检通过。但执行链（Shizuku UserService 胶水 + 载荷加载器）尚未接通，本版停在这里，不执行、不假装能跑。",
+                    EmbeddedRootState.READY -> Text(
+                        "预检通过。点下面开始跑内嵌 root（Shizuku UserService + 98260 载荷）；跑起来后没有暂停，不要切后台、不要锁屏。",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    EmbeddedRootState.LOADING -> Text(
+                        "正在往特权进程传载荷…",
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     EmbeddedRootState.RUNNING -> Text(
                         "正在跑 exploit…跑起来后没有暂停，不要切后台、不要锁屏。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    EmbeddedRootState.VERIFYING -> Text(
+                        "正在校验 root 是否真的起来了…",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     EmbeddedRootState.SUCCEEDED -> Text(
@@ -274,7 +281,7 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     EmbeddedRootState.FAILED -> Text(
-                        "预检没通过，原因见下。98260 失败后请完整重启手机再试，不要立即重试。",
+                        "失败了，原因：${vm.embeddedRootFailureReason ?: "见下方预检"}。98260 失败后请完整重启手机再试，不要立即重试。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
@@ -288,13 +295,19 @@ fun SystemFontScreen(vm: FontsViewModel, padding: PaddingValues) {
                     )
                 }
                 Button(
-                    onClick = vm::runEmbeddedRootPrecheck,
+                    onClick = if (vm.embeddedRootState == EmbeddedRootState.READY) {
+                        vm::runEmbeddedRoot
+                    } else {
+                        vm::runEmbeddedRootPrecheck
+                    },
                     enabled = vm.embeddedRootState != EmbeddedRootState.CHECKING &&
-                        vm.embeddedRootState != EmbeddedRootState.RUNNING,
+                        vm.embeddedRootState != EmbeddedRootState.LOADING &&
+                        vm.embeddedRootState != EmbeddedRootState.RUNNING &&
+                        vm.embeddedRootState != EmbeddedRootState.VERIFYING,
                     modifier = Modifier.heightIn(min = 56.dp),
                 ) {
                     Text(
-                        "开始预检",
+                        if (vm.embeddedRootState == EmbeddedRootState.READY) "开始 root" else "开始预检",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )

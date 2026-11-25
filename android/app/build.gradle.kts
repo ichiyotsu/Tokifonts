@@ -13,8 +13,8 @@ android {
         // TokiUI android.md：目标 Android 16 及以上（minSdk 36）。
         minSdk = 36
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
     buildTypes {
         release {
@@ -22,7 +22,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
-    buildFeatures { compose = true; buildConfig = true }
+    buildFeatures { compose = true; buildConfig = true; aidl = true }
     // 种子锁定测试要读 vendored 的语义 token 原文件：把主 assets 目录也放进
     // 单元测试的 resources，测试用类加载器读到的就是打包进 APK 的同一份 JSON。
     sourceSets {
@@ -81,8 +81,14 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.tukaani:xz:1.10")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    // Shizuku API（本地 AAR：构建 --offline 拉不到 Maven，见 docs/embed-inventory.md §C）。
-    implementation(files("libs/shizuku-api-13.1.5.aar", "libs/shizuku-aidl-13.1.5.aar", "libs/shizuku-shared-13.1.5.aar"))
+    // Shizuku API — vendored source modules (third-party/shizuku, MIT,
+    // Shizuku-API @ aaba9928 = Maven 13.1.5). Replaces the three local AARs
+    // in app/libs/ (deleted once the source modules were verified to build).
+    // :api transitively brings :shared and :aidl; :provider is the binder
+    // channel (ShizukuProvider, registered in the manifest) — the execution
+    // chain uses the provider path, not Sui (see UserServiceGlue).
+    implementation(project(":third-party:shizuku:api"))
+    implementation(project(":third-party:shizuku:provider"))
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")

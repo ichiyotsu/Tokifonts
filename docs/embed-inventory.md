@@ -75,6 +75,11 @@ URL + size，不进树（19 × 约 5MB，全下约 100MB，APK 装不下也没�
 api 的唯一传递依赖是 `androidx.annotation:annotation:1.3.0`，本 App 已有，
 无需另下。Shizuku 本体仍是用户另行安装的独立应用，不打包。
 
+> 2026-11-25 源码融入轮：上述 3 个 AAR 已删除，改为 vendored 源码模块
+> `third-party/shizuku/`（Shizuku-API @ `aaba9928`，即 Maven 13.1.5，
+> MIT；另含 `provider/` 模块，暂未被 `:app` 依赖）。上表保留为历史记录
+> （AAR 的 SHA-256 是删除前实测值）。`app/libs/` 现为空。
+
 ## D. 缺口（取不到 / 没法核实，不编造）
 
 1. **按固件分的 GhostLock 载荷 `cve-2026-43499-<TAG>`（12 个）全部取不到**：

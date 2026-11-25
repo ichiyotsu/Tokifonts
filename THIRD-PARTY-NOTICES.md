@@ -48,18 +48,47 @@ https://www.apache.org/licenses/LICENSE-2.0 。
   GPL-3.0。Pro 轨内嵌 exploit 方案参考 / 复用其引擎与载荷
   （见 `docs/embed-design.md`）；其 `LICENSE` 即本树根 `LICENSE`
   的来源。
-- **KernelSU**（https://github.com/tiann/KernelSU）：GPL-2.0。
-  `ksud` 驱动产物（3.2.5 / 3.3.0 / 3.3.1 KDP）按 GPL-2.0 计；
-  内嵌时须随包带上 GPL-2.0 文本（上游 App 的 assets 里已有
-  `gpl-2.0.txt`，内嵌时一并带走）。
-- **Shizuku**（https://github.com/RikkaApps/Shizuku）：Apache 2.0。
-  Shizuku 是用户另行安装的独立应用，不由本 App 打包分发；
+- **KernelSU**（https://github.com/tiann/KernelSU）：许可证按目录分区——
+  `kernel/`（内核 LKM 源码）为 **GPL-2.0-only**，其余部分（ksud、ksuinit、
+  manager、uapi）为 **GPL-3.0-or-later**（见 `third-party/kernelsu/` 里
+  随附的根 `LICENSE`（GPLv3 全文）与 `kernel/LICENSE`（GPLv2 全文），
+  以及 `docs/README.md` §License 的分区声明；之前这里只写 GPL-2.0 是
+  不完整的，已纠正）。ksud 守护进程自本轮起从源码编（pin v3.3.1，
+  commit `0c0fdb96`，UAPI 5；构建见 `third-party/kernelsu/build-ksud.sh`，
+  产物不进包（`build-ksud.sh` 编出后放在 `third-party/kernelsu/out/`，可随时重编），
+  未替换任何预编译驱动）；
+  执行链轮（2026-11-25）定夺：**`ksud-331-src` 不接入运行链**，映射保持
+  3.2.5（见 `docs/source-integration.md` §5 第 4 项）——实测它内嵌的
+  `.ko` 是零个（编前 `bin/aarch64/` 里没放任何 `*_kernelsu.ko`），
+  late-load 会直接报 "No kernel module found"；且 UAPI 5 的 daemon 对
+  DZJ3 的 UAPI 2 时代 `.ko` 会触发版本不匹配拒绝。`KSU_PACKAGE_NAME`
+  保持上游默认 `me.weishu.kernelsu`（预编译 `umh_action.sh` 写死
+  `--package-name me.weishu.kernelsu`）。ksuinit 自执行链轮起由
+  `build-ksud.sh` 同一步编出并嵌进 ksud（只影响 boot-patch，不影响
+  late-load）；现 `ksud-331-src`（`third-party/kernelsu/out/` 里的构建产物）为 5,370,600 B，
+  sha256 `e8fbdea5…3868a63`（2026-11-25 重编，含 ksuinit）；
+  各固件的 `.ko` 仍为预编译（编 `.ko` 需目标内核源码 + 三星补丁，App
+  构建里没有）。内嵌的 ksud 驱动产物随包带上对应协议文本（上游 App
+  的 assets 里已有 `gpl-2.0.txt`，内嵌时一并带走；GPLv3 文本见树根
+  `LICENSE`）。
+- **Shizuku**（https://github.com/RikkaApps/Shizuku-API）：**MIT**
+  （Copyright (c) 2021 RikkaW；之前这里写 Apache 2.0 是错的，已纠正——
+  Apache 2.0 的是主仓 `RikkaApps/Shizuku` 的 manager/server，本 App
+  不打包它们）。API 源码已 vendored 进 `third-party/shizuku/`
+  （pin commit `aaba9928`，即 Maven 13.1.5；MIT 全文见该目录 `LICENSE`）。
+  执行链轮（2026-11-25）起 `:app` 也依赖 `:third-party:shizuku:provider`
+  源码模块，manifest 注册了 `ShizukuProvider`，binder 只走 provider
+  通道，不走 Sui（Sui 要预装 Magisk 模块，未 root 的目标机没有）。
+  Shizuku manager 本身仍是用户另行安装的独立应用，不由本 App 打包分发；
   此处只记录授权依赖关系。
 - **SamTimer**（https://github.com/RiosWesley/SamTimer）：
-  98260 UAF 引擎的参考实现。**已核对（2026-11-24）：该仓库根目录没有
-  LICENSE 文件**（列根目录只有 `.gitignore`、`README.md`、`app/`、
-  `build.gradle.kts` 等），许可证仍未核对清——在核对清之前不内嵌它的
-  任何代码（`timer_samtimer.c` 源码未取、未放进树）；本轮内嵌的
-  `samtimer/*` 二进制全部来自 root-my-s24 公开仓库（GPL-3.0，
-  许可证文本已随包放在 `android/app/src/main/assets/embed/licenses/`）。
-  另见 `docs/embed-inventory.md` §D 缺口 2。
+  98260 UAF 引擎的参考实现。**已核对（2026-11-25，见侦察报告）：
+  该仓库全树没有任何有效开源协议**（根目录、各源码目录均无 LICENSE /
+  COPYING / NOTICE；README 无协议章节；全部源码文件头无协议头、无 SPDX；
+  `timer.c:17` 的一句 "Adapted from woshigenm/CVE-2026-98260 (MIT)" 只
+  覆盖 woshigenm 自己的文件，不能授权 SamTimer 的 `timer.c`，且 SamTimer
+  未履行 MIT 的署名条件）。因此 SamTimer 的任何源码（`timer.c`、Kotlin
+  应用代码、`umh_action.sh`）一律不搬、不编；本轮内嵌的 `samtimer/*`
+  二进制全部来自 root-my-s24 公开仓库（GPL-3.0，许可证文本已随包放在
+  `android/app/src/main/assets/embed/licenses/`），保持预编译原样，
+  不扩大使用范围。另见 `docs/embed-inventory.md` §D 缺口 2。

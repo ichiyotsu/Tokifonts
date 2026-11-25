@@ -37,5 +37,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <!-- Shizuku binder 通道（执行链用 provider，不走 Sui，见 UserServiceGlue 文件头）：
+             server 在应用启动时经这个 provider 把 binder 发过来；authorities 必须
+             是 ${applicationId}.shizuku；exported 必须 true（server 以 shell 身份访问），
+             multiprocess 必须 false，permission 必须是 shell 有、普通应用没有的权限。 -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="com.ichiyotsu.tokifontspro.shizuku"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
     </application>
 </manifest>

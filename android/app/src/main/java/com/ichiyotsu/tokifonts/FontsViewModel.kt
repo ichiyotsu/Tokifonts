@@ -155,8 +155,10 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             val packageName = WizardApps.launchPackageFor(tool) ?: return@filter false
             isInstalled(packageName)
         }.toSet()
-        // Shizuku 是否正在运行：pingBinder（Shizuku API，本地 AAR）。Shizuku 没起来
-        // 时返回 false；任何异常都当作“没查到”，不崩溃、不谎报已运行。
+        // Shizuku 是否正在运行：pingBinder（Shizuku API，vendored 源码模块）。
+        // Shizuku 没起来时返回 false；任何异常都当作“没查到”，不崩溃、不谎报已运行。
+        // 注意：binder 是 ShizukuProvider（manifest 已注册）从 server 收到的；
+        // provider 没注册时这里永远是 false，见 UserServiceGlue 文件头。
         sysFontShizukuRunning = runCatching { rikka.shizuku.Shizuku.pingBinder() }.getOrNull()
     }
 
@@ -266,8 +268,11 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
     /** Shizuku 是否正在运行（pingBinder 结果）：null = 还没检查。 */
     var sysFontShizukuRunning by mutableStateOf<Boolean?>(null)
         private set
-    /** 内嵌一键 root 的运行状态（见 [EmbeddedRootState]：只有三种诚实状态）。 */
+    /** 内嵌一键 root 的运行状态（见 [EmbeddedRootState]）。 */
     var embeddedRootState by mutableStateOf(EmbeddedRootState.IDLE)
+        private set
+    /** 最近一次内嵌 root 失败的原因（null = 没失败过）；界面直接展示。 */
+    var embeddedRootFailureReason by mutableStateOf<String?>(null)
         private set
     /** 最近一次预检的逐项结果（界面直接展示）。 */
     var embeddedRootChecks by mutableStateOf<List<EmbeddedRootCheck>>(emptyList())
@@ -288,8 +293,7 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
 
     /**
      * 内嵌一键 root：只跑预检，不执行 exploit。
-     * 预检全过 → [EmbeddedRootState.READY_NOT_WIRED]：执行链（Shizuku UserService
-     * 胶水 + 载荷加载器）尚未接通，本版停在这里，绝不假装能跑；
+     * 预检全过 → [EmbeddedRootState.READY]，界面出现“开始 root”；
      * 预检不过 → [EmbeddedRootState.FAILED]，只报失败原因；失败后没有“立即重试”
      * 按钮（98260 失败要完整重启手机才能再试，见预检项）。
      */
@@ -307,10 +311,85 @@ class FontsViewModel(app: Application, private val savedState: SavedStateHandle 
             embeddedAssetsPresent = embeddedRootAssetsPresent,
         )
         embeddedRootChecks = checks
+        embeddedRootFailureReason = checks.firstOrNull { !it.passed }?.let { "${it.label}：${it.reason}" }
         embeddedRootState = if (checks.allPassed()) {
-            EmbeddedRootState.READY_NOT_WIRED
+            EmbeddedRootState.READY
         } else {
             EmbeddedRootState.FAILED
+        }
+    }
+
+    /**
+     * 内嵌一键 root：预检通过后真正跑 exploit。
+     *
+     * 链：建加载计划（驱动选择复用 [selectKsudDriver]）→ 绑 Shizuku
+     * UserService（[ShizukuUserServiceConnector]）→ [runLoadPlan]
+     *（staging → libtimer → 校验 → 失败回滚）。只在 [EmbeddedRootState.READY]
+     * 时能点；跑起来后界面不再给任何操作，直到 SUCCEEDED / FAILED。
+     * 绑定失败（Shizuku 没起来 / 没授权）不算 98260 失败，exploit 根本没跑，
+     * guard 不记——但界面仍只给“重启手机后重试”的指引，不给“立即重试”。
+     * 成功后第 3 步的 root 检测直接置 true（加载器里已验过 `su -c id`）。
+     */
+    fun runEmbeddedRoot() {
+        if (embeddedRootState != EmbeddedRootState.READY) return
+        val device = sysFontDevice ?: return
+        val planOutcome = buildLoadPlan(
+            engine = sysFontToolRecommendation?.engine,
+            kernelFull = SystemFont.parseKernelFullVersion(device.kernelVersion),
+            firmwareBuild = device.firmwareIncremental,
+        )
+        val plan = when (planOutcome) {
+            is LoadPlanOutcome.Blocked -> {
+                embeddedRootFailureReason = planOutcome.reason
+                embeddedRootState = EmbeddedRootState.FAILED
+                return
+            }
+            is LoadPlanOutcome.Ready -> planOutcome.plan
+        }
+        embeddedRootState = EmbeddedRootState.LOADING
+        embeddedRootFailureReason = null
+        viewModelScope.launch(Dispatchers.IO) {
+            val connector = ShizukuUserServiceConnector(getApplication())
+            when (val bound = connector.bind()) {
+                is UserServiceBindResult.Failed -> onMain {
+                    embeddedRootFailureReason = bound.reason
+                    embeddedRootState = EmbeddedRootState.FAILED
+                }
+                is UserServiceBindResult.Bound -> {
+                    try {
+                        val readAsset: (String) -> ByteArray? = { assetPath ->
+                            runCatching {
+                                getApplication<Application>().assets.open(assetPath).use { it.readBytes() }
+                            }.getOrNull()
+                        }
+                        val executor = UserServiceExecutor(bound.service, readAsset)
+                        val outcome = runLoadPlan(
+                            plan = plan,
+                            executor = executor,
+                            readAsset = readAsset,
+                            onState = { state -> onMain { embeddedRootState = state } },
+                            onExploitStart = { embeddedRootGuard.markAttempted() },
+                        )
+                        when (outcome) {
+                            is LoadOutcome.Success -> onMain {
+                                embeddedRootFailureReason = null
+                                sysFontRoot = true
+                                embeddedRootState = EmbeddedRootState.SUCCEEDED
+                                flash("已取得 root，可以继续第 3 步")
+                            }
+                            is LoadOutcome.Failure -> {
+                                if (outcome.markFailed98260) embeddedRootGuard.markFailed98260()
+                                onMain {
+                                    embeddedRootFailureReason = outcome.reason
+                                    embeddedRootState = EmbeddedRootState.FAILED
+                                }
+                            }
+                        }
+                    } finally {
+                        connector.unbind()
+                    }
+                }
+            }
         }
     }
 

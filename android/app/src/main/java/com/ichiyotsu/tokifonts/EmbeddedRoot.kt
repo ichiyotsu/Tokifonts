@@ -13,8 +13,10 @@ package com.ichiyotsu.tokifonts
  *   （这是 GhostLock 的规则，不要套到 98260 头上）。
  *
  * 本版范围：预检 + 状态机 + 内嵌产物清单核对。exploit 的实际执行链
- * （Shizuku UserService 胶水 + 载荷加载器）尚未接通——[EmbeddedRootState.NOT_WIRED]
- * 是诚实状态，不是占位文案；接通前绝不假装能跑。见 `docs/embed-inventory.md` §D。
+ * （Shizuku UserService 胶水 + 载荷加载器）已接通，见 [PayloadLoader]：
+ * 预检全过 → READY → LOADING（staging）→ RUNNING（libtimer）→
+ * VERIFYING（su + 内核模块校验）→ SUCCEEDED / FAILED。
+ * 仍是诚实状态：任何一步失败只报原因 + “重启手机后重试”，不承诺成功率。
  */
 
 /** 内嵌一键 root 的一次预检项。 */
@@ -25,16 +27,20 @@ data class EmbeddedRootCheck(
     val reason: String = "",
 )
 
-/** 内嵌一键 root 的运行状态（界面只能有这三种诚实状态）。 */
+/** 内嵌一键 root 的运行状态（界面只能有这几种诚实状态）。 */
 enum class EmbeddedRootState {
     /** 还没预检。 */
     IDLE,
     /** 预检中。 */
     CHECKING,
-    /** 预检通过，等待执行——执行链未接通，本版停在这里，不执行。 */
-    READY_NOT_WIRED,
-    /** 正在跑 exploit（只有执行链接通后才会进入；本版进不到）。 */
+    /** 预检通过，可以开始跑。 */
+    READY,
+    /** 正在往特权进程 stage 载荷（libtimer / uhexec / 脚本 / ksud）。 */
+    LOADING,
+    /** 正在跑 exploit（libtimer umhpipe；跑起来后没有暂停）。 */
     RUNNING,
+    /** 正在校验（`su -c id` 拿 uid=0 + /proc/modules 里有 kernelsu）。 */
+    VERIFYING,
     /** 成功：已取得 root（执行链跑完才有）。 */
     SUCCEEDED,
     /** 失败：只报原因 + “重启手机后重试”的指引，绝不给“立即重试”按钮。 */
